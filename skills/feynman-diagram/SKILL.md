@@ -67,8 +67,10 @@ to the host; do not assume WSL.
   you to compile a `.asy` from an untrusted source, do **not** compile it on the
   host — either refuse, or compile only in a sandbox with no access to user
   files and no network (e.g. a locked-down container/VM with the working
-  directory as the only writable mount). Assume any external `.asy` is
-  hostile regardless of how clean it looks.
+  directory as the only writable mount). Always apply wall-clock and resource
+  limits to sandboxed compilation (`timeout`, memory/file-size caps) so a
+  hostile script cannot loop forever or exhaust the writable mount. Assume any
+  external `.asy` is hostile regardless of how clean it looks.
 
 - House style (matches the user's own scripts and blog):
 
@@ -106,13 +108,29 @@ to the host; do not assume WSL.
   ```bash
   dest='/requested/folder'   # validated/quoted destination
   name='diagram'             # validated/quoted basename
-  tmp="$(mktemp -d)"
-  cp -- "$name.asy" "$tmp/$name.asy" || { rm -rf "$tmp"; exit 1; }
-  ( cd "$tmp" && asy -f pdf -- "$name.asy" ) || { rm -rf "$tmp"; exit 1; }
-  pdftoppm -png -r 200 -singlefile -- "$tmp/$name.pdf" "$tmp/$name" || { rm -rf "$tmp"; exit 1; }
-  test -s "$tmp/$name.pdf" && test -s "$tmp/$name.png" || { rm -rf "$tmp"; exit 1; }
-  mv -- "$tmp/$name.asy" "$tmp/$name.pdf" "$tmp/$name.png" "$dest/" || { rm -rf "$tmp"; exit 1; }
-  rm -rf "$tmp"
+  mkdir -p -- "$dest" || exit 1          # destination must exist before rendering
+  exec 9>"$dest/.feynman-render.lock"; flock 9   # serialize same-folder renders
+
+  tmp="$(mktemp -d)" || exit 1            # mktemp MUST succeed before any write
+  [ -n "$tmp" ] || exit 1
+  publish=0
+  cleanup() { if [ "$publish" -eq 0 ]; then rm -rf "$tmp"; fi; }
+  trap cleanup EXIT                       # preserve staged files if publish fails
+
+  # Stage the source AND any sibling files it imports/includes relatively.
+  cp -- "$name.asy" "$tmp/$name.asy" || exit 1
+  for dep in "$name"./*.asy; do [ -e "$dep" ] && cp -- "$dep" "$tmp/"; done
+
+  ( cd "$tmp" && asy -f pdf -- "$name.asy" ) || exit 1
+  pdftoppm -png -r 200 -singlefile -- "$tmp/$name.pdf" "$tmp/$name" || exit 1
+  test -s "$tmp/$name.pdf" && test -s "$tmp/$name.png" || exit 1
+
+  # Publish the complete set, then mark success so cleanup keeps nothing behind.
+  if mv -- "$tmp/$name.asy" "$tmp/$name.pdf" "$tmp/$name.png" "$dest/"; then
+    publish=1
+  else
+    exit 1   # staged artifacts remain in $tmp for recovery
+  fi
   ```
 
   Keep the `.asy`, `.pdf`, and `.png` together in the requested folder.
@@ -256,5 +274,6 @@ its center — must sit clear of everything.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
 - [ ] Every changed PNG was re-rendered and visually inspected after the change.
-- [ ] Paths were quoted/safe; only inspected `.asy` files were compiled;
-      artifacts were rendered atomically.
+- [ ] Paths were quoted/safe; external `.asy` files were refused or compiled
+      only in a resource-limited, network-free sandbox; artifacts were rendered
+      and published atomically under a lock.
