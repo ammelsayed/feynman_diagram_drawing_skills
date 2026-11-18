@@ -39,7 +39,8 @@ checkable rules.
    the model before rejecting or drawing it. Closed fermion loops carry one
    continuous arrow flow and take the requested quark flavor: arrows carry
    fermion-number flow, so the segment running back against the flow the loop
-   entered with is the antiquark, never a fixed "always top" assumption.
+   entered with is the antiquark — a loop with no external fermion takes a
+   consistent convention — never a fixed "always top" assumption.
    Consistent notation (`H` everywhere).
 2. **Internal symmetry** — square loops, equal-length parallel same-role lines,
    symmetric fan-outs, and *mirrored label pairs* with equal gaps.
