@@ -79,8 +79,10 @@ irm https://raw.githubusercontent.com/ammelsayed/feynman_diagram_drawing_skills/
 ```
 
 The installer writes into agent directories that already exist on your machine,
-and always creates the universal `~/.agents/skills` target. It supports
-`--dry-run` / `-DryRun` and `--uninstall` / `-Uninstall`.
+and always creates the universal `~/.agents/skills` target. It never overwrites
+an existing skill in place: run `--uninstall` before reinstalling to replace an
+older version. It supports `--dry-run` / `-DryRun` and `--uninstall` /
+`-Uninstall`.
 
 Manual:
 
