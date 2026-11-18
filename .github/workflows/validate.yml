@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# Least privilege: validation needs to read the tree, nothing else.
+# Least privilege: validation reads the tree and nothing else.
 permissions:
   contents: read
 
@@ -16,86 +16,125 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Do not persist the GITHUB_TOKEN in the checked-out repo's git config:
-          # PR code runs here and must not be able to read a write-capable token.
+          # PR code runs here and must not read a write-capable token.
           persist-credentials: false
 
-      - name: Check plugin manifests are valid JSON
-        run: |
-          python3 -c "import json;json.load(open('.claude-plugin/plugin.json'))"
-          python3 -c "import json;json.load(open('.claude-plugin/marketplace.json'))"
-
-      - name: Check every skill file and its front matter
+      - name: Check the skill files and the marketplace listing
         run: |
           python3 - <<'EOF'
-          import pathlib, re, sys
+          import json, pathlib, re, sys
 
+          SLUG = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
+          BLOCK = ('>', '|', '>-', '|-', '>+', '|+')
           errors = []
-          skills = {}
-          for d in sorted(p for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')):
+
+          def front_matter(path):
+              lines = path.read_text(encoding='utf-8').splitlines()
+              if not lines or lines[0] != '---':
+                  return None, None, 'first line is not ---'
+              try:
+                  end = lines.index('---', 1)
+              except ValueError:
+                  return None, None, 'no closing --- line'
+              return lines[1:end], lines[end + 1:], None
+
+          def fields_of(block):
+              out, key = {}, None
+              for line in block:
+                  m = re.match(r'^([A-Za-z_-]+):(.*)$', line)
+                  if m:
+                      key, out[m.group(1)] = m.group(1), m.group(2).strip()
+                  elif key and line[:1] in (' ', '\t') and line.strip():
+                      out[key] = (out[key] + ' ' + line.strip()).strip()
+                  elif line.strip():
+                      key = None
+              return out
+
+          def block_value(block, key):
+              for i, line in enumerate(block):
+                  if line.startswith(key + ':'):
+                      return ' '.join(x.strip() for x in block[i + 1:]
+                                      if x[:1] in (' ', '\t') and x.strip())
+              return ''
+
+          def scalar(value):
+              if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
+                  return value[1:-1].strip()
+              return value.strip()
+
+          skills_dir = pathlib.Path('skills')
+          roots = sorted(p for p in skills_dir.iterdir()
+                         if p.is_dir() and not p.name.startswith('.')) if skills_dir.is_dir() else []
+          if not roots:
+              errors.append('skills/: no skill directories')
+
+          for d in roots:
               f = d / 'SKILL.md'
-              if not f.is_file():
+              if f.is_symlink() or not f.is_file():
                   errors.append(f'{f}: not a regular file')
                   continue
-              text = f.read_text(encoding='utf-8')
-              if not text.strip():
+              if f.stat().st_size == 0:
                   errors.append(f'{f}: empty')
                   continue
-              if not text.startswith('---\n'):
-                  errors.append(f'{f}: no front matter')
+              head, body, why = front_matter(f)
+              if why:
+                  errors.append(f'{f}: {why}')
                   continue
-              head, sep, _ = text[4:].partition('\n---')
-              if not sep:
-                  errors.append(f'{f}: front matter is not closed')
+              if not '\n'.join(body).strip():
+                  errors.append(f'{f}: no instructions after the front matter')
                   continue
-              fields, key = {}, None
-              for line in head.splitlines():
-                  m = re.match(r'^([A-Za-z_-]+):\s*(.*)$', line)
-                  if m:
-                      key, fields[m.group(1)] = m.group(1), m.group(2).strip()
-                  elif key and line.strip() and line.startswith((' ', '\t')):
-                      fields[key] += ' ' + line.strip()
-              desc = ' '.join(fields.get('description', '').split())
-              if desc in ('', '>', '|'):
+              fm = fields_of(head)
+              name = scalar(fm.get('name', ''))
+              if not name:
+                  errors.append(f'{f}: no name')
+              elif not SLUG.match(name):
+                  errors.append(f"{f}: name '{name}' is not a lower-case slug")
+              elif name != d.name:
+                  errors.append(f"{f}: name '{name}' does not match directory '{d.name}'")
+              raw = fm.get('description', '')
+              desc = block_value(head, 'description') if raw in BLOCK else scalar(raw)
+              desc = ' '.join(desc.split())
+              if not desc:
                   errors.append(f'{f}: no description')
               elif len(desc) > 1024:
                   errors.append(f'{f}: description is {len(desc)} characters, over 1024')
-              if not errors:
-                  skills[d.name] = f
+              if raw in BLOCK and not desc:
+                  errors.append(f'{f}: empty description block')
+
+          mp_path = pathlib.Path('.claude-plugin/marketplace.json')
+          plug_path = pathlib.Path('.claude-plugin/plugin.json')
+          mp = {}
+          for path in (mp_path, plug_path):
+              try:
+                  data = json.loads(path.read_text(encoding='utf-8'))
+              except Exception as e:
+                  errors.append(f'{path}: {e}')
+                  continue
+              if path == mp_path:
+                  mp = data
+
+          plugins = mp.get('plugins') or []
+          if not plugins:
+              errors.append(f'{mp_path}: no plugins')
+          advertised = set()
+          for p in plugins:
+              entries = p.get('skills') or []
+              if not isinstance(entries, list):
+                  errors.append(f'{mp_path}: skills is not a list')
+                  continue
+              for slug in entries:
+                  if isinstance(slug, str):
+                      advertised.add(slug)
+                  else:
+                      errors.append(f'{mp_path}: a skills entry is not a string')
+          on_disk = {d.name for d in roots}
+          for slug in sorted(on_disk - advertised):
+              errors.append(f'{mp_path}: skill {slug} is not advertised')
+          for slug in sorted(advertised - on_disk):
+              errors.append(f'{mp_path}: advertises {slug}, which is not on disk')
 
           if errors:
               print('\n'.join('ERROR: ' + e for e in errors), file=sys.stderr)
               sys.exit(1)
-          print('skills ok:', ', '.join(sorted(skills)))
-          EOF
-
-      - name: Check the marketplace advertises exactly these skills
-        run: |
-          python3 - <<'EOF'
-          import json, pathlib, re, sys
-          mp = json.load(open('.claude-plugin/marketplace.json'))
-          plugins = mp['plugins']
-          skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')}
-
-          def tokens(value):
-              return set(re.findall(r'[a-z0-9]+(?:-[a-z0-9]+)*', str(value).lower()))
-
-          advertised = set()
-          for p in plugins:
-              raw = p.get('skills', [])
-              if isinstance(raw, list):
-                  advertised |= {x for x in raw if isinstance(x, str)}
-              advertised |= tokens(' '.join(p.get('tags', [])))
-
-          missing = sorted(skills - advertised)
-          # A slug advertised by the marketplace that has no skill directory is
-          # a skill users see but cannot install.
-          slugs = {x for p in plugins for x in (p.get('skills') or []) if isinstance(x, str)}
-          unknown = sorted(slugs - skills)
-          if missing:
-              print('ERROR: skills not advertised by the marketplace:', missing, file=sys.stderr)
-          if unknown:
-              print('ERROR: marketplace advertises unknown skills:', unknown, file=sys.stderr)
-          if missing or unknown:
-              sys.exit(1)
-          print('marketplace matches skills:', sorted(skills))
+          print('ok: ' + ', '.join(sorted(on_disk)))
           EOF
