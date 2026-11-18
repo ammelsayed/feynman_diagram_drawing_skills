@@ -23,18 +23,28 @@ looking at the rendered image.
 Asymptote is available on **WSL, Linux, macOS and Windows**. Adapt the commands
 to the host; do not assume WSL.
 
-- Check first (native shell on the host; in WSL use the native `wsl` tool):
+- Check first, with a command native to the host:
 
   ```bash
-  which asy && asy --version
+  # Linux / macOS / WSL (bash)
+  command -v asy && asy --version
   ```
 
-  The `feynman` package ships with Asymptote (`feynman.asy` in the installation's
-  `base`/`prelude` directory, e.g. `/usr/share/asymptote/` on Debian/Ubuntu).
-  On Windows use an installed Asymptote (`asy.exe`) or the web compiler at
-  http://asymptote.ualberta.ca/ if no local engine exists. If no engine is
-  available anywhere, say so in one line and deliver the `.asy` anyway — never
-  claim it compiled.
+  ```powershell
+  # Windows PowerShell (works in 5.1 and 7+)
+  Get-Command asy -ErrorAction SilentlyContinue
+  if ($?) { asy --version }
+  ```
+
+  (In Windows Command Prompt use `where asy`. In WSL drive the native `wsl`
+  tool.) The `feynman` package ships with Asymptote (`feynman.asy` in the
+  installation's `base`/`prelude` directory, e.g. `/usr/share/asymptote/` on
+  Debian/Ubuntu). On Windows prefer a locally installed Asymptote (`asy.exe`).
+  A web compiler is a last resort at https://asymptote.ualberta.ca/ — HTTPS
+  only, and only with the user's consent: the `.asy` source is sent over the
+  network, so never upload unpublished or sensitive source without permission.
+  If no engine is available anywhere, say so in one line and deliver the
+  `.asy` anyway — never claim it compiled.
 
 - **Path handling (security).** Never interpolate a user-controlled path or
   filename directly into a shell command string. Shell metacharacters in such
@@ -51,10 +61,14 @@ to the host; do not assume WSL.
   WSL) and quote them; do not paste a raw Windows path into `bash -lc`.
 
 - **Untrusted `.asy` files are executable code.** Asymptote runs the script
-  during compilation, with the agent's file/network permissions. Only compile
-  files you wrote or inspected. If a user supplies a `.asy` from an untrusted
-  source, read it first for `system`, `execute`, file I/O or network calls, or
-  compile it in a sandbox without access to user files or the network.
+  during compilation with the agent's file and network permissions. Source
+  inspection is not sufficient: effects can hide in imported/included files or
+  indirect constructs. Prefer local scripts you wrote yourself. If a user asks
+  you to compile a `.asy` from an untrusted source, do **not** compile it on the
+  host — either refuse, or compile only in a sandbox with no access to user
+  files and no network (e.g. a locked-down container/VM with the working
+  directory as the only writable mount). Assume any external `.asy` is
+  hostile regardless of how clean it looks.
 
 - House style (matches the user's own scripts and blog):
 
@@ -81,16 +95,23 @@ to the host; do not assume WSL.
   `pdftoppm` is one common choice; equivalent rasterizers (ImageMagick
   `convert`/`magick`, `gs`, Preview, etc.) are fine on other hosts.
 
-- **Render atomically.** Write PDF and PNG to a temporary directory first,
-  verify both were produced successfully, then move the complete set into the
-  destination folder. Never leave a new source/PDF beside a stale PNG. Serialize
-  concurrent workflows targeting the same folder and basename.
+- **Render atomically.** Stage the `.asy`, PDF, and PNG together in a temporary
+  directory, verify every artifact exists, then publish the **whole set as one
+  protected operation** to the requested folder. Never leave a new source beside
+  stale outputs, or a PDF without its PNG. Serialize workflows targeting the
+  same folder and basename (a lock file is enough). Check every command's
+  status: stop publication on any failure and preserve the failure status while
+  cleaning up — a trailing `rm` must not turn a failed render into success.
 
   ```bash
+  dest='/requested/folder'   # validated/quoted destination
+  name='diagram'             # validated/quoted basename
   tmp="$(mktemp -d)"
-  asy -f pdf -o "$tmp" -- name.asy          # or compile there
-  pdftoppm -png -r 200 -singlefile -- "$tmp/name.pdf" "$tmp/name"
-  mv "$tmp/name.pdf" "$tmp/name.png" .      # publish only on success
+  cp -- "$name.asy" "$tmp/$name.asy" || { rm -rf "$tmp"; exit 1; }
+  ( cd "$tmp" && asy -f pdf -- "$name.asy" ) || { rm -rf "$tmp"; exit 1; }
+  pdftoppm -png -r 200 -singlefile -- "$tmp/$name.pdf" "$tmp/$name" || { rm -rf "$tmp"; exit 1; }
+  test -s "$tmp/$name.pdf" && test -s "$tmp/$name.png" || { rm -rf "$tmp"; exit 1; }
+  mv -- "$tmp/$name.asy" "$tmp/$name.pdf" "$tmp/$name.png" "$dest/" || { rm -rf "$tmp"; exit 1; }
   rm -rf "$tmp"
   ```
 
