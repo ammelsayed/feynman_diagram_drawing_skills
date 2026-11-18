@@ -7,7 +7,7 @@ description: >
   diagrams. Covers physics validity (real vertices, fermion-flow quark vs
   antiquark), internal and group symmetry (ratios, shared external geometry),
   label semantics and placement (endpoint/midline/vertex, glyph bounding boxes,
-  object density), a cross-platform compile workflow, and mandatory visual
+  object density), a platform-neutral rendering requirement, and mandatory visual
   auditing. General rules for any process (ggF, VBF, Higgs self-coupling,
   QCD/EW), with examples — not tied to one diagram.
 ---
@@ -20,33 +20,30 @@ clean labels, verified by looking at the rendered image.
 
 ## What to deliver
 
-A diagram is delivered as an Asymptote source file and a PNG of at least 220
-dpi rendered from it, in the folder the user asked for, with the PDF the PNG
-came from kept beside them when the user wants the vector file. How the files
-are made, named and written is the agent's business: this skill is instructions
-only, ships no script, and suits any editor, shell and toolchain on Linux,
-macOS, Windows or WSL.
+For each diagram the user gets an Asymptote source file of your writing and a
+PNG rendered from that source at 220 dpi or more, in the folder the user asked
+for; add the PDF behind the PNG when the user wants the vector file. This skill
+is instructions only: no script, command or snippet ships with it.
 
-- **Set up first.** Asymptote and its `feynman` package ship together in a
-  standard installation. Confirm both are available before drawing; if they
-  are not, install Asymptote for this platform or ask the user to. A web
-  service is a last resort: it uploads the source, so use it only with the
-  user's consent and never for unpublished material. With no engine available,
-  deliver the source and say plainly that it was not compiled.
-- **Rasterize rather than bitmap.** A 220+ dpi raster of the vector page is
-  what looks right on paper; any rasterizer the platform provides will do.
-- **Look at what you deliver.** Open the PNG and zoom about three times into
-  the regions where labels and lines crowd, and look again after any change to
-  the source. A PNG nobody looked at is not evidence that the diagram is right.
-- **Say what happened.** Compilation and rasterization can fail; when they do,
-  say so in one line instead of presenting an older or partial artifact as the
-  result.
+- **An engine is needed to render.** Asymptote and its `feynman` package ship
+  together in a standard installation; confirm both are present before drawing
+  and, if they are not, install Asymptote for this platform or ask the user to.
+  A web Asymptote service is a last resort — it uploads the source — so use it
+  only with the user's consent and never for unpublished material. With no
+  engine at all, hand over the source and say in one line that nothing was
+  rendered.
+- **A 220+ dpi raster of the vector page** is what looks right on paper.
+- **Look at the PNG you hand over**, zooming about three times into the regions
+  where labels and lines crowd. Nothing else establishes that the diagram is
+  right.
+- **Say what happened.** When a step fails, say so in one line rather than
+  offering an older or partial file as the result.
 
-Safety: Asymptote executes the script it is given, including every file that
-script imports or includes. The standard Asymptote installation and its own
-packages are part of your toolchain and are always allowed; every other source
-file the script reaches must come from you or the user. When that cannot be
-established, decline in one line and explain which file is the problem.
+Source files are executable: Asymptote runs the script it is given, including
+whatever that script imports. The standard installation and its own packages
+are part of your toolchain; any other source the script would reach has to be
+written by you or handed over by the user. When it is not, do not compile it —
+decline in one line and name the file.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
@@ -193,6 +190,7 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
-- [ ] The PNG was rendered from the current source and visually inspected after
-      the last edit; the PDF and PNG exist and are non-empty.
+- [ ] The PNG you hand over was rendered from the source beside it and
+      inspected after the last edit — or, with no engine, the hand-over says
+      that nothing was rendered.
 - [ ] Only source written by the user or the agent was compiled.
