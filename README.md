@@ -32,10 +32,15 @@ checkable rules.
 
 ### The four rules (summary)
 
-1. **Physics correctness** — only real vertices (a VVHH contact is 4-point with
-   no internal line; a `V→HH` 3-point vertex does not exist). Closed fermion
-   loops: the segment flowing into the bottom-left gluon vertex is an anti-top
-   `$\bar{t}$`, all others are `$t$`. Consistent notation (`H` everywhere).
+1. **Physics correctness** — only vertices that exist in the theory the user
+   asked for. A quartic contact (VVHH, HHHH) is a genuine 4-point vertex with
+   **no** internal line; a `V→HH` 3-point vertex is theory-dependent (absent in
+   the SM for two neutral Higgses, genuine in extended Higgs sectors), so check
+   the model before rejecting or drawing it. Closed fermion loops carry one
+   continuous arrow flow and take the requested quark flavor: derive the
+   antiquark segment from the arrow direction (the one running back into the
+   incoming vertex), never from a fixed "always top" assumption. Consistent
+   notation (`H` everywhere).
 2. **Internal symmetry** — square loops, equal-length parallel same-role lines,
    symmetric fan-outs, and *mirrored label pairs* with equal gaps.
 3. **Group symmetry** — diagrams of one family share the exact external

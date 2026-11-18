@@ -91,30 +91,58 @@ to the host; do not assume WSL.
   folder that holds the `.asy` is what makes relative `include`/`import` paths
   and sibling `.asy` dependencies resolve; nothing is copied or staged.
 
+  Bash (Linux / macOS / WSL):
+
   ```bash
-  # Linux / macOS / WSL (bash)
+  set -euo pipefail
   cd -- "$dir"                      # folder that holds the .asy
+  rm -f -- "$name.png"              # a failed raster must not leave an old PNG
   asy -f pdf -- "$name.asy"         # writes "$name.pdf" beside the source
-  pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$name"
+  raster="$name.png.tmp.$$"         # rasterize under a temporary name
+  pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$raster"
+  [ -s "$name.pdf" ] && [ -s "$raster.png" ] || { echo "render failed: $name" >&2; exit 1; }
+  mv -- "$raster.png" "$name.png"   # publish only once the PNG is complete
   ```
 
+  PowerShell (Windows, 5.1 and 7+):
+
   ```powershell
-  # Windows PowerShell (5.1 and 7+)
+  $ErrorActionPreference = 'Stop'
   Set-Location -LiteralPath $dir
+  Remove-Item -LiteralPath "$name.png" -ErrorAction SilentlyContinue
   asy -f pdf -- "$name.asy"
-  pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$name"
+  if ($LASTEXITCODE -ne 0) { throw "asy failed: $name" }
+  if (Get-Command pdftoppm -ErrorAction SilentlyContinue) {
+      pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$name"
+  }
+  elseif (Get-Command magick -ErrorAction SilentlyContinue) {
+      magick -density 220 "$name.pdf" "$name.png"
+  }
+  else { throw 'no PDF rasterizer: install Poppler (pdftoppm) or ImageMagick (magick)' }
+  if ($LASTEXITCODE -ne 0) { throw "rasterization failed: $name" }
+  foreach ($f in "$name.pdf", "$name.png") {
+      if (-not (Test-Path -LiteralPath $f) -or (Get-Item -LiteralPath $f).Length -eq 0) {
+          throw "missing or empty artifact: $f"
+      }
+  }
   ```
 
   `pdftoppm` is one rasterizer among several: ImageMagick (`magick`/`convert`),
   Ghostscript and an OS preview tool are equivalent. PDF then a 200+ dpi
-  rasterization gives a clean publication-quality PNG.
+  rasterization gives a clean publication-quality PNG. On Windows only Poppler
+  or ImageMagick is assumed, and the recipe stops with a clear message when
+  neither is installed.
+
+  Render one diagram per folder at a time: two concurrent renders of the same
+  basename would race on the PDF/PNG pair. A job with several diagrams renders
+  them in sequence, and the rename above publishes each PNG only after it is
+  complete.
 
 - **Fail loudly.** Run each command on its own line and check it before the
-  next one (`set -euo pipefail` in bash; `throw` when `$LASTEXITCODE` is
-  non-zero in PowerShell), then confirm both outputs exist and are non-empty
-  (`[ -s "$name.pdf" ] && [ -s "$name.png" ]`). A missing or empty artifact
-  means the render failed — say so. A later cleanup or move command must never
-  turn a failed render into a reported success.
+  next one, as the snippets above do (`set -euo pipefail` in bash; `throw` on a
+  non-zero `$LASTEXITCODE` or a missing artifact in PowerShell). A missing or
+  empty artifact means the render failed — say so. A later cleanup or move
+  command must never turn a failed render into a reported success.
 
   Keep the `.asy`, the PDF and the PNG together in the folder the user asked
   for: compile there rather than rendering elsewhere and moving files.
