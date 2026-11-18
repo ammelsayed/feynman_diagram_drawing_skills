@@ -2,8 +2,8 @@
 
 Turn any AI agent into a careful Feynman-diagram drafter. One skill that makes
 agents draw diagrams a physicist accepts: correct vertices and fermion flow,
-balanced geometry, clean labels, and a rendered image that was actually looked
-at before the agent says "done".
+balanced geometry and clean labels, and the figure looked at before the agent
+says "done".
 
 Works with Claude Code, Codex, OpenCode, Cursor, DSH, WorkBuddy, and any client
 that implements the Agent Skills open standard. Install with one command, or
