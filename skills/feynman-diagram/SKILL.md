@@ -87,40 +87,37 @@ to the host; do not assume WSL.
   linewidth(3))` for vertices, and `label(...)` for text. Higgs lines should
   normally have no arrow: `drawScalar(a--b, None)`.
 
-- Compile to PDF then rasterize (PDF then `pdftoppm` gives clean high-res PNG):
+- Compile in the diagram's own folder, then rasterize. Running `asy` from the
+  folder that holds the `.asy` is what makes relative `include`/`import` paths
+  and sibling `.asy` dependencies resolve; nothing is copied or staged.
 
   ```bash
-  asy -f pdf -- name.asy
-  pdftoppm -png -r 200 -singlefile -- name.pdf name
+  # Linux / macOS / WSL (bash)
+  cd -- "$dir"                      # folder that holds the .asy
+  asy -f pdf -- "$name.asy"         # writes "$name.pdf" beside the source
+  pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$name"
   ```
 
-  `pdftoppm` is one common choice; equivalent rasterizers (ImageMagick
-  `convert`/`magick`, `gs`, Preview, etc.) are fine on other hosts.
+  ```powershell
+  # Windows PowerShell (5.1 and 7+)
+  Set-Location -LiteralPath $dir
+  asy -f pdf -- "$name.asy"
+  pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$name"
+  ```
 
-- **Render atomically.** When publishing several artifacts for one diagram, the
-  `.asy`, PDF, and PNG must appear as a single coherent set — never a new source
-  beside stale outputs, and never a PDF without its PNG. To achieve this:
-  - Create and validate the destination folder before rendering.
-  - Stage all artifacts in a private temporary directory on the **same
-    filesystem** as the destination, so final publication is a rename rather
-    than a copy.
-  - Verify every artifact exists and is non-empty before publishing.
-  - Publish the set with one atomic directory rename, or an equivalent
-    all-or-nothing operation. If publication fails, leave the staged files in
-    place for recovery instead of deleting them.
-  - Serialize renders that target the same folder and basename with a lock kept
-    in a **private** directory (never a caller-controlled path). Check lock
-    acquisition; if it fails, stop rather than render unlocked. Nothing may
-    publish if a newer version of the same diagram was requested meanwhile.
-  - Check every command's status. Stop on any failure; a trailing cleanup
-    command must not turn a failed render into a reported success.
-  - Stage relative imports/includes alongside the source: reject symlinks and
-    non-regular files, bound their sizes, and verify each copy succeeds.
+  `pdftoppm` is one rasterizer among several: ImageMagick (`magick`/`convert`),
+  Ghostscript and an OS preview tool are equivalent. PDF then a 200+ dpi
+  rasterization gives a clean publication-quality PNG.
 
-  Prefer the maintained helper script `scripts/render_diagram.sh` in this repo
-  for this workflow; it implements the above. Adapt it per host rather than
-  pasting ad-hoc shell into a prompt. Keep the `.asy`, `.pdf`, and `.png`
-  together in the requested folder.
+- **Fail loudly.** Run each command on its own line and check it before the
+  next one (`set -euo pipefail` in bash; `throw` when `$LASTEXITCODE` is
+  non-zero in PowerShell), then confirm both outputs exist and are non-empty
+  (`[ -s "$name.pdf" ] && [ -s "$name.png" ]`). A missing or empty artifact
+  means the render failed — say so. A later cleanup or move command must never
+  turn a failed render into a reported success.
+
+  Keep the `.asy`, the PDF and the PNG together in the folder the user asked
+  for: compile there rather than rendering elsewhere and moving files.
 
 - **Never claim done without looking at the rendered PNG.** Read the image,
   zoom crops (`convert x.png -crop WxH+X+Y +repage -resize 300% z.png`) where
@@ -262,5 +259,5 @@ its center — must sit clear of everything.
       placement chosen.
 - [ ] Every changed PNG was re-rendered and visually inspected after the change.
 - [ ] Paths were quoted/safe; external `.asy` files were refused or compiled
-      only in a resource-limited, network-free sandbox; artifacts were rendered
-      and published atomically under a lock.
+      only in a resource-limited, network-free sandbox; both the PDF and the
+      PNG exist and are non-empty before "done" is claimed.
