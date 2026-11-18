@@ -13,8 +13,10 @@ copy into the folder your agent reads skills from.
 npx skills add ammelsayed/feynman_diagram_drawing_skills
 ```
 
-`npx skills add` and the plugin marketplace are third-party clients; they copy
-the same directory into the folders those clients read.
+`npx skills add` and the plugin marketplace below are third-party clients; they
+copy the same directory into the folders those clients read. The `npx` client
+needs Node 22.20 or newer — upgrade Node, or place the skill by hand instead
+(see Install).
 
 ## The problem this fixes
 
