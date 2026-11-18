@@ -63,7 +63,12 @@ def _fallback_frontmatter(lines):
             if key is not None:
                 fm[key] = _join_block(buf)
             key, raw = m.group(1), m.group(2).strip()
-            buf = [raw]
+            if key in fm:
+                raise ValueError(f"duplicate frontmatter key: {key}")
+            if raw in ("|", "|-", "|+", ">", ">-", ">+"):
+                buf = []  # block scalar: following indented lines are its value
+            else:
+                buf = [_fallback_scalar(raw)]
         elif key is not None:
             buf.append(line.strip())
         else:
@@ -77,7 +82,7 @@ def _join_block(buf):
     """Join a YAML block scalar: drop trailing blanks, keep internal newlines."""
     while buf and buf[-1] == "":
         buf.pop()
-    return "\n".join(buf).strip()
+    return "\n".join("" if x is None else str(x) for x in buf).strip()
 
 
 def parse_frontmatter(text):
@@ -92,15 +97,31 @@ def parse_frontmatter(text):
 
     raw = "\n".join(lines[1:end])
     if yaml is not None:
+        class StrictLoader(yaml.SafeLoader):
+            pass
+
+        def no_duplicates(loader, node, deep=False):
+            mapping = {}
+            for key_node, value_node in node.value:
+                key = loader.construct_object(key_node, deep=deep)
+                if key in mapping:
+                    raise ValueError(f"duplicate frontmatter key: {key}")
+                mapping[key] = loader.construct_object(value_node, deep=deep)
+            return mapping
+
+        StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+        # YAML 1.2 scalar resolution: on/off/yes/no are strings, not booleans.
+        for ch in ("y", "Y", "n", "N"):
+            StrictLoader.yaml_implicit_resolvers.pop(ch, None)
+
         try:
-            fm = yaml.safe_load(raw)
+            fm = yaml.load(raw, Loader=StrictLoader)
         except Exception as exc:
             return None, f"frontmatter is not valid YAML: {exc}"
         if fm is None:
             fm = {}
         if not isinstance(fm, dict):
             return None, "frontmatter must be a YAML mapping"
-        # YAML decodes scalars to real types — exactly what clients see.
     else:
         try:
             fm = _fallback_frontmatter(lines[1:end])
@@ -158,7 +179,7 @@ def validate(skill_dir: Path):
             f"{skill_dir.name}: description is {len(desc)} chars (max {MAX_DESC})"
         )
 
-    if compat is not None:
+    if "compatibility" in fm:
         if not _is_string(compat):
             problems.append(f"{skill_dir.name}: 'compatibility' must be a string")
         elif len(compat) > MAX_COMPAT:

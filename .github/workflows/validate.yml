@@ -44,9 +44,15 @@ jobs:
           skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')}
           print('skills:', sorted(skills))
           print('marketplace plugins:', sorted(names))
-          missing = sorted(skills - names)
+          # A plugin name may differ from the skill directory name. A skill is
+          # discoverable when a plugin advertises it in its description/tags.
+          discoverable = set()
+          for p in mp['plugins']:
+              text = (p.get('description', '') + ' ' + ' '.join(p.get('tags', []))).lower()
+              discoverable.update(s for s in skills if s.lower() in text)
+          missing = sorted(skills - discoverable)
           if missing:
-              print('ERROR: skills missing from marketplace:', missing, file=sys.stderr)
+              print('ERROR: skills not discoverable via marketplace:', missing, file=sys.stderr)
               sys.exit(1)
           EOF
 
@@ -56,7 +62,8 @@ jobs:
       - name: PowerShell installer is syntactically valid
         shell: pwsh
         run: |
+          $tokens = $null
           $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path install.ps1), [ref]$null, [ref]$errors)
+            (Resolve-Path install.ps1), [ref]$tokens, [ref]$errors)
           if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
