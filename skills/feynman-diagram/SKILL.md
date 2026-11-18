@@ -97,43 +97,30 @@ to the host; do not assume WSL.
   `pdftoppm` is one common choice; equivalent rasterizers (ImageMagick
   `convert`/`magick`, `gs`, Preview, etc.) are fine on other hosts.
 
-- **Render atomically.** Stage the `.asy`, PDF, and PNG together in a temporary
-  directory, verify every artifact exists, then publish the **whole set as one
-  protected operation** to the requested folder. Never leave a new source beside
-  stale outputs, or a PDF without its PNG. Serialize workflows targeting the
-  same folder and basename (a lock file is enough). Check every command's
-  status: stop publication on any failure and preserve the failure status while
-  cleaning up — a trailing `rm` must not turn a failed render into success.
+- **Render atomically.** When publishing several artifacts for one diagram, the
+  `.asy`, PDF, and PNG must appear as a single coherent set — never a new source
+  beside stale outputs, and never a PDF without its PNG. To achieve this:
+  - Create and validate the destination folder before rendering.
+  - Stage all artifacts in a private temporary directory on the **same
+    filesystem** as the destination, so final publication is a rename rather
+    than a copy.
+  - Verify every artifact exists and is non-empty before publishing.
+  - Publish the set with one atomic directory rename, or an equivalent
+    all-or-nothing operation. If publication fails, leave the staged files in
+    place for recovery instead of deleting them.
+  - Serialize renders that target the same folder and basename with a lock kept
+    in a **private** directory (never a caller-controlled path). Check lock
+    acquisition; if it fails, stop rather than render unlocked. Nothing may
+    publish if a newer version of the same diagram was requested meanwhile.
+  - Check every command's status. Stop on any failure; a trailing cleanup
+    command must not turn a failed render into a reported success.
+  - Stage relative imports/includes alongside the source: reject symlinks and
+    non-regular files, bound their sizes, and verify each copy succeeds.
 
-  ```bash
-  dest='/requested/folder'   # validated/quoted destination
-  name='diagram'             # validated/quoted basename
-  mkdir -p -- "$dest" || exit 1          # destination must exist before rendering
-  exec 9>"$dest/.feynman-render.lock"; flock 9   # serialize same-folder renders
-
-  tmp="$(mktemp -d)" || exit 1            # mktemp MUST succeed before any write
-  [ -n "$tmp" ] || exit 1
-  publish=0
-  cleanup() { if [ "$publish" -eq 0 ]; then rm -rf "$tmp"; fi; }
-  trap cleanup EXIT                       # preserve staged files if publish fails
-
-  # Stage the source AND any sibling files it imports/includes relatively.
-  cp -- "$name.asy" "$tmp/$name.asy" || exit 1
-  for dep in "$name"./*.asy; do [ -e "$dep" ] && cp -- "$dep" "$tmp/"; done
-
-  ( cd "$tmp" && asy -f pdf -- "$name.asy" ) || exit 1
-  pdftoppm -png -r 200 -singlefile -- "$tmp/$name.pdf" "$tmp/$name" || exit 1
-  test -s "$tmp/$name.pdf" && test -s "$tmp/$name.png" || exit 1
-
-  # Publish the complete set, then mark success so cleanup keeps nothing behind.
-  if mv -- "$tmp/$name.asy" "$tmp/$name.pdf" "$tmp/$name.png" "$dest/"; then
-    publish=1
-  else
-    exit 1   # staged artifacts remain in $tmp for recovery
-  fi
-  ```
-
-  Keep the `.asy`, `.pdf`, and `.png` together in the requested folder.
+  Prefer the maintained helper script `scripts/render_diagram.sh` in this repo
+  for this workflow; it implements the above. Adapt it per host rather than
+  pasting ad-hoc shell into a prompt. Keep the `.asy`, `.pdf`, and `.png`
+  together in the requested folder.
 
 - **Never claim done without looking at the rendered PNG.** Read the image,
   zoom crops (`convert x.png -crop WxH+X+Y +repage -resize 300% z.png`) where
