@@ -19,48 +19,30 @@ jobs:
           # PR code runs here and must not read a write-capable token.
           persist-credentials: false
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the YAML parser
+        run: python3 -m pip install --quiet pyyaml
+
       - name: Check the skill files and the marketplace listing
         run: |
           python3 - <<'EOF'
-          import json, pathlib, re, sys
+          import json, pathlib, re, sys, yaml
 
           SLUG = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
-          BLOCK = ('>', '|', '>-', '|-', '>+', '|+')
+          NAME_MAX, DESC_MAX = 64, 1024
           errors = []
 
-          def front_matter(path):
+          def split_front_matter(path):
               lines = path.read_text(encoding='utf-8').splitlines()
               if not lines or lines[0] != '---':
                   return None, None, 'first line is not ---'
-              try:
-                  end = lines.index('---', 1)
-              except ValueError:
-                  return None, None, 'no closing --- line'
-              return lines[1:end], lines[end + 1:], None
-
-          def fields_of(block):
-              out, key = {}, None
-              for line in block:
-                  m = re.match(r'^([A-Za-z_-]+):(.*)$', line)
-                  if m:
-                      key, out[m.group(1)] = m.group(1), m.group(2).strip()
-                  elif key and line[:1] in (' ', '\t') and line.strip():
-                      out[key] = (out[key] + ' ' + line.strip()).strip()
-                  elif line.strip():
-                      key = None
-              return out
-
-          def block_value(block, key):
-              for i, line in enumerate(block):
-                  if line.startswith(key + ':'):
-                      return ' '.join(x.strip() for x in block[i + 1:]
-                                      if x[:1] in (' ', '\t') and x.strip())
-              return ''
-
-          def scalar(value):
-              if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
-                  return value[1:-1].strip()
-              return value.strip()
+              for i in range(1, len(lines)):
+                  if lines[i] == '---':
+                      return '\n'.join(lines[1:i]), '\n'.join(lines[i + 1:]), None
+              return None, None, 'no closing --- line'
 
           skills_dir = pathlib.Path('skills')
           roots = sorted(p for p in skills_dir.iterdir()
@@ -71,67 +53,86 @@ jobs:
           for d in roots:
               f = d / 'SKILL.md'
               if f.is_symlink() or not f.is_file():
-                  errors.append(f'{f}: not a regular file')
+                  errors.append('%s: not a regular file' % f)
                   continue
               if f.stat().st_size == 0:
-                  errors.append(f'{f}: empty')
+                  errors.append('%s: empty' % f)
                   continue
-              head, body, why = front_matter(f)
+              head, body, why = split_front_matter(f)
               if why:
-                  errors.append(f'{f}: {why}')
+                  errors.append('%s: %s' % (f, why))
                   continue
-              if not '\n'.join(body).strip():
-                  errors.append(f'{f}: no instructions after the front matter')
+              if not body.strip():
+                  errors.append('%s: no instructions after the front matter' % f)
                   continue
-              fm = fields_of(head)
-              name = scalar(fm.get('name', ''))
-              if not name:
-                  errors.append(f'{f}: no name')
-              elif not SLUG.match(name):
-                  errors.append(f"{f}: name '{name}' is not a lower-case slug")
-              elif name != d.name:
-                  errors.append(f"{f}: name '{name}' does not match directory '{d.name}'")
-              raw = fm.get('description', '')
-              desc = block_value(head, 'description') if raw in BLOCK else scalar(raw)
-              desc = ' '.join(desc.split())
-              if not desc:
-                  errors.append(f'{f}: no description')
-              elif len(desc) > 1024:
-                  errors.append(f'{f}: description is {len(desc)} characters, over 1024')
-              if raw in BLOCK and not desc:
-                  errors.append(f'{f}: empty description block')
+              try:
+                  meta = yaml.safe_load(head)
+              except yaml.YAMLError as e:
+                  errors.append('%s: front matter is not valid YAML: %s' % (f, e))
+                  continue
+              if not isinstance(meta, dict):
+                  errors.append('%s: front matter is not a mapping' % f)
+                  continue
+              name = meta.get('name')
+              if not isinstance(name, str) or not name.strip():
+                  errors.append('%s: no name' % f)
+              else:
+                  name = name.strip()
+                  if not SLUG.match(name):
+                      errors.append("%s: name %r is not a lower-case slug" % (f, name))
+                  elif len(name) > NAME_MAX:
+                      errors.append('%s: name is %d characters, over %d' % (f, len(name), NAME_MAX))
+                  elif name != d.name:
+                      errors.append("%s: name %r does not match directory %r" % (f, name, d.name))
+              desc = meta.get('description')
+              if not isinstance(desc, str) or not desc.strip():
+                  errors.append('%s: no description' % f)
+              elif len(' '.join(desc.split())) > DESC_MAX:
+                  errors.append('%s: description is over %d characters' % (f, DESC_MAX))
 
           mp_path = pathlib.Path('.claude-plugin/marketplace.json')
           plug_path = pathlib.Path('.claude-plugin/plugin.json')
-          mp = {}
-          for path in (mp_path, plug_path):
+          mp, plug = {}, {}
+          for path, kind in ((mp_path, 'marketplace'), (plug_path, 'plugin')):
               try:
                   data = json.loads(path.read_text(encoding='utf-8'))
               except Exception as e:
-                  errors.append(f'{path}: {e}')
+                  errors.append('%s: %s' % (path, e))
                   continue
-              if path == mp_path:
+              if kind == 'marketplace':
                   mp = data
+              else:
+                  plug = data
+          if not plug:
+              errors.append('%s: unreadable' % plug_path)
 
           plugins = mp.get('plugins') or []
           if not plugins:
-              errors.append(f'{mp_path}: no plugins')
+              errors.append('%s: no plugins' % mp_path)
           advertised = set()
-          for p in plugins:
-              entries = p.get('skills') or []
+          for plugin in plugins:
+              entries = plugin.get('skills') or []
               if not isinstance(entries, list):
-                  errors.append(f'{mp_path}: skills is not a list')
+                  errors.append('%s: skills is not a list' % mp_path)
                   continue
-              for slug in entries:
-                  if isinstance(slug, str):
-                      advertised.add(slug)
-                  else:
-                      errors.append(f'{mp_path}: a skills entry is not a string')
+              for entry in entries:
+                  if not isinstance(entry, str):
+                      errors.append('%s: a skills entry is not a string' % mp_path)
+                      continue
+                  path = pathlib.Path(entry)
+                  if not path.is_dir():
+                      errors.append('%s: skills entry %s is not a directory' % (mp_path, entry))
+                      continue
+                  skill_md = path / 'SKILL.md'
+                  if skill_md.is_symlink() or not skill_md.is_file():
+                      errors.append('%s: %s has no SKILL.md file' % (mp_path, entry))
+                      continue
+                  advertised.add(path.name)
           on_disk = {d.name for d in roots}
           for slug in sorted(on_disk - advertised):
-              errors.append(f'{mp_path}: skill {slug} is not advertised')
+              errors.append('%s: skill %s is not listed in a plugin' % (mp_path, slug))
           for slug in sorted(advertised - on_disk):
-              errors.append(f'{mp_path}: advertises {slug}, which is not on disk')
+              errors.append('%s: lists %s, which is not on disk' % (mp_path, slug))
 
           if errors:
               print('\n'.join('ERROR: ' + e for e in errors), file=sys.stderr)

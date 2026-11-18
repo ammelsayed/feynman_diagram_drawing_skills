@@ -21,7 +21,7 @@
       ],
       "strict": false,
       "skills": [
-        "feynman-diagram"
+        "./skills/feynman-diagram"
       ]
     }
   ]
