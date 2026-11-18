@@ -78,8 +78,11 @@ Windows:
 irm https://raw.githubusercontent.com/ammelsayed/feynman_diagram_drawing_skills/main/install.ps1 | iex
 ```
 
-The installer writes only into agents that exist on your machine, and supports
-`--dry-run` / `-DryRun` and `--uninstall` / `-Uninstall`.
+The installer writes into agent directories that already exist on your machine,
+and always creates the universal `~/.agents/skills` target. It never overwrites
+an existing skill in place: run `--uninstall` before reinstalling to replace an
+older version. It supports `--dry-run` / `-DryRun` and `--uninstall` /
+`-Uninstall`.
 
 Manual:
 
@@ -112,7 +115,8 @@ feynman_diagram_drawing_skills/
 │   └── feynman-diagram/
 │       └── SKILL.md          # the complete rule set
 ├── scripts/
-│   └── validate_skills.py    # spec checker, no dependencies
+│   ├── validate_skills.py    # spec checker (requires PyYAML)
+│   └── render_diagram.sh     # atomic PDF/PNG renderer with locking
 ├── install.sh
 ├── install.ps1
 └── LICENSE
