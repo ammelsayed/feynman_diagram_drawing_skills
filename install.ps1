@@ -18,108 +18,117 @@ $Repo = 'https://github.com/ammelsayed/feynman_diagram_drawing_skills.git'
 $Skill = 'feynman-diagram'
 $Marker = '.feynman-diagram-installer'
 
-# Agent skill directories. Only agents whose parent directory exists are touched,
-# except the universal target, which is always valid.
 $Targets = @(
-    @{ Label = 'Claude Code';               Dir = Join-Path $HOME '.claude\skills';      Universal = $false },
-    @{ Label = 'Codex';                     Dir = Join-Path $HOME '.codex\skills';       Universal = $false },
-    @{ Label = 'OpenCode';                  Dir = Join-Path $HOME '.config\opencode\skills'; Universal = $false },
-    @{ Label = 'Cursor';                    Dir = Join-Path $HOME '.cursor\skills';      Universal = $false },
-    @{ Label = 'zcode';                     Dir = Join-Path $HOME '.zcode\skills';       Universal = $false },
-    @{ Label = 'DSH';                       Dir = Join-Path $HOME '.dsh\skills';         Universal = $false },
-    @{ Label = 'WorkBuddy';                 Dir = Join-Path $HOME '.workbuddy\skills';   Universal = $false },
-    @{ Label = 'Agent Skills (universal)';  Dir = Join-Path $HOME '.agents\skills';      Universal = $true }
+    @{ Label = 'Claude Code';               Dir = Join-Path $HOME '.claude\skills';           Universal = $false },
+    @{ Label = 'Codex';                     Dir = Join-Path $HOME '.codex\skills';            Universal = $false },
+    @{ Label = 'OpenCode';                  Dir = Join-Path $HOME '.config\opencode\skills';  Universal = $false },
+    @{ Label = 'Cursor';                    Dir = Join-Path $HOME '.cursor\skills';           Universal = $false },
+    @{ Label = 'zcode';                     Dir = Join-Path $HOME '.zcode\skills';            Universal = $false },
+    @{ Label = 'DSH';                       Dir = Join-Path $HOME '.dsh\skills';              Universal = $false },
+    @{ Label = 'WorkBuddy';                 Dir = Join-Path $HOME '.workbuddy\skills';        Universal = $false },
+    @{ Label = 'Agent Skills (universal)';  Dir = Join-Path $HOME '.agents\skills';           Universal = $true }
 )
 
-$Temp = $null
-$Src = $null
+$Work = Join-Path ([System.IO.Path]::GetTempPath()) ("fds-" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $Work -Force | Out-Null
 
-function Write-Step {
-    param([scriptblock]$Action, [string]$Description)
-    if ($DryRun) { Write-Host "  [dry-run] $Description" }
-    else { & $Action }
+function Test-Managed {
+    param([string]$Path)
+    if (Test-Path (Join-Path $Path $Marker)) { return $true }
+    $skillMd = Join-Path $Path 'SKILL.md'
+    if ((Test-Path $skillMd) -and (Select-String -Path $skillMd -Pattern 'name:\s*feynman-diagram' -Quiet)) {
+        return $true   # legacy marker-less install of this skill
+    }
+    return $false
 }
 
 try {
-    # Uninstall needs no source: handle it before any clone.
-    if ($Uninstall) {
-        Write-Host 'Uninstalling Feynman diagram drawing skills'
-        foreach ($t in $Targets) {
-            $path = Join-Path $t.Dir $Skill
-            if (Test-Path $path) {
-                if (Test-Path (Join-Path $path $Marker)) {
-                    Write-Step { Remove-Item $path -Recurse -Force } "rm -rf $path"
-                    Write-Host "  removed    $($t.Label)  $Skill"
-                } else {
-                    Write-Host "  kept       $($t.Label)  $Skill (not installed by this installer)"
+    # Uninstall before any source fetch; serialize with install via a lock file.
+    $lockPath = Join-Path $HOME '.feynman_skills.lock'
+    $lock = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    try {
+        if ($Uninstall) {
+            Write-Host 'Uninstalling Feynman diagram drawing skills'
+            foreach ($t in $Targets) {
+                $path = Join-Path $t.Dir $Skill
+                if (Test-Path $path) {
+                    if (Test-Managed $path) {
+                        if (-not $DryRun) { Remove-Item $path -Recurse -Force }
+                        Write-Host "  removed    $($t.Label)  $Skill"
+                    } else {
+                        Write-Host "  kept       $($t.Label)  $Skill (unmanaged content)"
+                    }
                 }
             }
+            return
         }
-        return
-    }
 
-    # Resolve source. In a piped `irm ... | iex` invocation $PSScriptRoot is
-    # empty — never pass it to Join-Path.
-    $Local = $null
-    if ($PSScriptRoot) {
-        $candidate = Join-Path $PSScriptRoot "skills\$Skill\SKILL.md"
-        if (Test-Path $candidate) { $Local = $candidate }
-    }
-    if ($Local) {
-        $Src = Join-Path $PSScriptRoot 'skills'
-    } else {
-        $Temp = Join-Path ([System.IO.Path]::GetTempPath()) ("fds-" + [guid]::NewGuid().ToString('N'))
-        New-Item -ItemType Directory -Path $Temp -Force | Out-Null
-        Write-Host "Fetching skills from $Repo ..."
-        git clone --depth 1 --quiet $Repo (Join-Path $Temp 'repo')
-        $Src = Join-Path $Temp 'repo\skills'
-    }
+        # Source: only trust a real script file next to skills/; piped invocations
+        # have empty $PSScriptRoot and must fetch the repository.
+        $Src = $null
+        if ($PSScriptRoot) {
+            $candidate = Join-Path $PSScriptRoot "skills\$Skill\SKILL.md"
+            if (Test-Path $candidate) { $Src = Join-Path $PSScriptRoot 'skills' }
+        }
+        if (-not $Src) {
+            New-Item -ItemType Directory -Path (Join-Path $Work 'repo') -Force | Out-Null
+            Write-Host "Fetching skills from $Repo ..."
+            git clone --depth 1 --quiet $Repo (Join-Path $Work 'repo')
+            $Src = Join-Path $Work 'repo\skills'
+        }
 
-    # Stage everything first so a failed copy cannot damage a live install.
-    $Stage = Join-Path ([System.IO.Path]::GetTempPath()) ("stage-" + [guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $Stage -Force | Out-Null
-    Copy-Item (Join-Path $Src $Skill) (Join-Path $Stage $Skill) -Recurse -Force
-    Set-Content -Path (Join-Path $Stage $Skill $Marker) -Value 'Installed by feynman_diagram_drawing_skills/install.ps1'
+        # Stage the whole set. No live directory is touched during staging.
+        $Stage = Join-Path $Work 'stage'
+        New-Item -ItemType Directory -Path $Stage -Force | Out-Null
+        Copy-Item (Join-Path $Src $Skill) (Join-Path $Stage $Skill) -Recurse -Force
+        Set-Content -Path (Join-Path $Stage $Skill $Marker) -Value 'Installed by feynman_diagram_drawing_skills/install.ps1'
 
-    $installed = 0
-    foreach ($t in $Targets) {
-        $parent = Split-Path $t.Dir -Parent
-        if (-not $t.Universal -and -not (Test-Path $parent)) { continue }
-
-        Write-Step { New-Item -ItemType Directory -Path $t.Dir -Force | Out-Null } "mkdir $($t.Dir)"
-        $dest = Join-Path $t.Dir $Skill
-        $backup = $null
-        if (Test-Path $dest) {
-            if (-not (Test-Path (Join-Path $dest $Marker))) {
-                Write-Host "  skipped    $($t.Label)  $Skill (existing data not managed by this installer)"
-                continue
+        $installed = 0
+        foreach ($t in $Targets) {
+            $parent = Split-Path $t.Dir -Parent
+            if (-not $t.Universal -and -not (Test-Path $parent)) { continue }
+            if (-not $DryRun) { New-Item -ItemType Directory -Path $t.Dir -Force | Out-Null }
+            $dest = Join-Path $t.Dir $Skill
+            $backup = $null
+            if (Test-Path $dest) {
+                if (-not (Test-Managed $dest)) {
+                    Write-Host "  skipped    $($t.Label)  $Skill (unmanaged content)"
+                    continue
+                }
+                if (-not $DryRun) {
+                    $backup = Join-Path $Work ("backup-$installed")
+                    Move-Item $dest $backup -Force   # atomic rename, no gap
+                }
             }
-            $backup = Join-Path ([System.IO.Path]::GetTempPath()) ("backup-" + [guid]::NewGuid().ToString('N'))
-            Move-Item $dest $backup -Force
+            if ($DryRun) {
+                Write-Host "  [dry-run] copy $Skill -> $dest"
+            } else {
+                try {
+                    Copy-Item (Join-Path $Stage $Skill) $dest -Recurse -Force -ErrorAction Stop
+                    if ($backup) { Remove-Item $backup -Recurse -Force }
+                } catch {
+                    if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+                    if ($backup) { Move-Item $backup $dest -Force }
+                    Write-Error "Failed to install $($t.Label)/$Skill; previous state restored."
+                    throw
+                }
+            }
+            Write-Host "  installed  $($t.Label)  ->  $dest"
+            $installed++
         }
-        try {
-            Write-Step {
-                Copy-Item (Join-Path $Stage $Skill) $dest -Recurse -Force
-            } "copy $Skill -> $dest"
-        } catch {
-            if ($backup) { Move-Item $backup $dest -Force }
-            Write-Error "Failed to install $($t.Label)/$Skill; previous version restored."
-            throw
+
+        if ($installed -eq 0) {
+            Write-Host 'No supported agent found. Create one of these directories and re-run:'
+            foreach ($t in $Targets) { Write-Host "  $($t.Dir)" }
+            exit 1
         }
-        Write-Host "  installed  $($t.Label)  ->  $dest"
-        $installed++
+        Write-Host ''
+        Write-Host "Done. $installed skill installs. Restart the agent, or run its reload command."
     }
-
-    if ($installed -eq 0) {
-        Write-Host 'No supported agent found. Create one of these directories and re-run:'
-        foreach ($t in $Targets) { Write-Host "  $($t.Dir)" }
-        exit 1
+    finally {
+        if ($lock) { $lock.Dispose() }
     }
-
-    Write-Host ''
-    Write-Host "Done. $installed skill installs. Restart the agent, or run its reload command."
 }
 finally {
-    if ($Stage -and (Test-Path $Stage)) { Remove-Item $Stage -Recurse -Force -ErrorAction SilentlyContinue }
-    if ($Temp -and (Test-Path $Temp)) { Remove-Item $Temp -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $Work) { Remove-Item $Work -Recurse -Force -ErrorAction SilentlyContinue }
 }
