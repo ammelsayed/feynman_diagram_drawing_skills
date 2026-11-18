@@ -37,10 +37,10 @@ checkable rules.
    **no** internal line; a `V→HH` 3-point vertex is theory-dependent (absent in
    the SM for two neutral Higgses, genuine in extended Higgs sectors), so check
    the model before rejecting or drawing it. Closed fermion loops carry one
-   continuous arrow flow and take the requested quark flavor: derive the
-   antiquark segment from the arrow direction (the one running back into the
-   incoming vertex), never from a fixed "always top" assumption. Consistent
-   notation (`H` everywhere).
+   continuous arrow flow and take the requested quark flavor: arrows carry
+   fermion-number flow, so the segment running back against the flow the loop
+   entered with is the antiquark, never a fixed "always top" assumption.
+   Consistent notation (`H` everywhere).
 2. **Internal symmetry** — square loops, equal-length parallel same-role lines,
    symmetric fan-outs, and *mirrored label pairs* with equal gaps.
 3. **Group symmetry** — diagrams of one family share the exact external

@@ -20,10 +20,11 @@ clean labels, verified by looking at the rendered image.
 
 ## What to deliver
 
-For each diagram the user gets an Asymptote source file of your writing and a
-PNG rendered from that source at 220 dpi or more, in the folder the user asked
-for; add the PDF behind the PNG when the user wants the vector file. This skill
-is instructions only: no script, command or snippet ships with it.
+For each diagram the user gets a plain-text Asymptote source file, and — when a
+renderer is available — a PNG picture of that diagram at 220 dpi or more, in
+the folder the user asked for, with the PDF behind the PNG when the user wants
+the vector page. This skill is instructions only: no script, command or snippet
+ships with it.
 
 - **An engine is needed to render.** Asymptote and its `feynman` package ship
   together in a standard installation; confirm both are present before drawing
@@ -41,9 +42,9 @@ is instructions only: no script, command or snippet ships with it.
 
 Source files are executable: Asymptote runs the script it is given, including
 whatever that script imports. The standard installation and its own packages
-are part of your toolchain; any other source the script would reach has to be
-written by you or handed over by the user. When it is not, do not compile it —
-decline in one line and name the file.
+are part of your toolchain; compile only source you wrote yourself. A source
+file handed over by the user is material to read, not code to run — read what
+it draws, then write your own source for that diagram.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
@@ -55,6 +56,11 @@ fermions, gluons and vector bosons with the package's dedicated routines
 Higgs line normally carries no arrow). Vertices are filled dots at heavy
 line width; text is placed with the package's label routine, with mathematics
 in dollar signs.
+
+Arrows carry fermion-number flow. The process itself fixes that flow, so within
+a loop the segment whose arrow follows the flow the loop entered with is the
+quark and the segment whose arrow runs back against it is the antiquark. Rule 1
+reads the antiquark off the arrows; this convention is what those arrows mean.
 
 ## The four rules
 
@@ -190,7 +196,8 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
-- [ ] The PNG you hand over was rendered from the source beside it and
-      inspected after the last edit — or, with no engine, the hand-over says
-      that nothing was rendered.
-- [ ] Only source written by the user or the agent was compiled.
+- [ ] The PNG you hand over shows the diagram as the source draws it and was
+      inspected after the last edit — or, with no engine available, the
+      hand-over says that nothing was rendered.
+- [ ] The source compiled was your own, together with the standard installation
+      and its packages.
