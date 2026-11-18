@@ -95,35 +95,67 @@ to the host; do not assume WSL.
 
   ```bash
   set -euo pipefail
-  cd -- "$dir"                      # folder that holds the .asy
-  rm -f -- "$name.png"              # a failed raster must not leave an old PNG
-  asy -f pdf -- "$name.asy"         # writes "$name.pdf" beside the source
-  raster="$name.png.tmp.$$"         # rasterize under a temporary name
-  pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$raster"
-  [ -s "$name.pdf" ] && [ -s "$raster.png" ] || { echo "render failed: $name" >&2; exit 1; }
-  mv -- "$raster.png" "$name.png"   # publish only once the PNG is complete
+  name='VBF_HH'                    # diagram basename: no slash, no "..", no leading -
+  case "$name" in
+    */*|*..*|-*) echo "name must be a plain basename without /, .. or a leading -" >&2; exit 2 ;;
+  esac
+  cd -- "$dir"                     # folder that holds the .asy
+  lock=".$name.render.lock"        # one render per folder and basename
+  mkdir -- "$lock" 2>/dev/null || {
+    echo "another render of $name is running (if none is, remove $lock)" >&2; exit 1; }
+  trap 'rmdir -- "$lock" 2>/dev/null' EXIT
+  rm -f -- "./$name.png"           # a failed raster must not leave an old PNG
+  asy -f pdf -- "$name.asy"        # writes "$name.pdf" beside the source
+  raster="$name.png.tmp.$$"        # rasterize under a temporary name
+  if command -v pdftoppm >/dev/null; then
+    pdftoppm -png -r 220 -singlefile -- "./$name.pdf" "$raster"
+  elif command -v magick >/dev/null; then
+    magick -density 220 -- "./$name.pdf" "./$raster.png"
+  elif command -v convert >/dev/null; then
+    convert -density 220 -- "./$name.pdf" "./$raster.png"
+  else
+    echo "no PDF rasterizer: install Poppler (pdftoppm) or ImageMagick (magick)" >&2
+    exit 1
+  fi
+  [ -s "./$name.pdf" ] && [ -s "./$raster.png" ] || { echo "render failed: $name" >&2; exit 1; }
+  mv -- "./$raster.png" "./$name.png"   # publish only once the PNG is complete
   ```
 
   PowerShell (Windows, 5.1 and 7+):
 
   ```powershell
   $ErrorActionPreference = 'Stop'
+  $name = 'VBF_HH'                 # diagram basename: no slash, no "..", no leading -
+  if ($name -match '[/\\]' -or $name -match '\.\.' -or $name.StartsWith('-')) {
+      throw 'name must be a plain basename without /, .. or a leading -'
+  }
   Set-Location -LiteralPath $dir
-  Remove-Item -LiteralPath "$name.png" -ErrorAction SilentlyContinue
-  asy -f pdf -- "$name.asy"
-  if ($LASTEXITCODE -ne 0) { throw "asy failed: $name" }
-  if (Get-Command pdftoppm -ErrorAction SilentlyContinue) {
-      pdftoppm -png -r 220 -singlefile -- "$name.pdf" "$name"
-  }
-  elseif (Get-Command magick -ErrorAction SilentlyContinue) {
-      magick -density 220 "$name.pdf" "$name.png"
-  }
-  else { throw 'no PDF rasterizer: install Poppler (pdftoppm) or ImageMagick (magick)' }
-  if ($LASTEXITCODE -ne 0) { throw "rasterization failed: $name" }
-  foreach ($f in "$name.pdf", "$name.png") {
-      if (-not (Test-Path -LiteralPath $f) -or (Get-Item -LiteralPath $f).Length -eq 0) {
-          throw "missing or empty artifact: $f"
+  $lock = ".$name.render.lock"     # one render per folder and basename
+  New-Item -ItemType Directory -Path $lock -ErrorAction Stop | Out-Null
+  try {
+      Remove-Item -LiteralPath "$name.png" -ErrorAction SilentlyContinue
+      asy -f pdf -- "$name.asy"
+      if ($LASTEXITCODE -ne 0) { throw "asy failed: $name" }
+      $raster = "$name.png.tmp"
+      if (Get-Command pdftoppm -ErrorAction SilentlyContinue) {
+          pdftoppm -png -r 220 -singlefile -- "./$name.pdf" "$raster"
       }
+      elseif (Get-Command magick -ErrorAction SilentlyContinue) {
+          magick -density 220 -- "./$name.pdf" "./$raster.png"
+      }
+      else {
+          throw 'no PDF rasterizer: install Poppler (pdftoppm) or ImageMagick (magick)'
+      }
+      if ($LASTEXITCODE -ne 0) { throw "rasterization failed: $name" }
+      foreach ($f in "$name.pdf", "$raster.png") {
+          if (-not (Test-Path -LiteralPath $f) -or (Get-Item -LiteralPath $f).Length -eq 0) {
+              throw "missing or empty artifact: $f"
+          }
+      }
+      Move-Item -LiteralPath "$raster.png" -Destination "$name.png" -Force
+  }
+  finally {
+      Remove-Item -LiteralPath $lock -Recurse -Force -ErrorAction SilentlyContinue
   }
   ```
 
@@ -133,10 +165,10 @@ to the host; do not assume WSL.
   or ImageMagick is assumed, and the recipe stops with a clear message when
   neither is installed.
 
-  Render one diagram per folder at a time: two concurrent renders of the same
-  basename would race on the PDF/PNG pair. A job with several diagrams renders
-  them in sequence, and the rename above publishes each PNG only after it is
-  complete.
+  Render one diagram per folder and basename at a time, which the lock
+  directory enforces: a second run stops instead of rasterizing the first run's
+  PDF. A job with several diagrams renders them in sequence, and the rename
+  publishes each PNG only after the rasterizer has finished.
 
 - **Fail loudly.** Run each command on its own line and check it before the
   next one, as the snippets above do (`set -euo pipefail` in bash; `throw` on a
