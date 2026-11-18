@@ -37,16 +37,29 @@ jobs:
       - name: Check every skill is discoverable through the marketplace
         run: |
           python3 - <<'EOF'
-          import json, pathlib, sys
+          import json, pathlib, re, sys
           mp = json.load(open('.claude-plugin/marketplace.json'))
           names = {p['name'] for p in mp['plugins']}
           assert names, 'marketplace has no plugins'
           skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')}
           print('skills:', sorted(skills))
           print('marketplace plugins:', sorted(names))
-          missing = sorted(skills - names)
+          # Match skill slugs as distinct advertised tokens, not arbitrary
+          # substrings of prose. Accept the slug as a word in a tag, or an
+          # explicit "skills:" list on the plugin.
+          def tokens(text):
+              return set(re.findall(r'[a-z0-9]+(?:-[a-z0-9]+)*', str(text).lower()))
+          discoverable = set()
+          for p in mp['plugins']:
+              raw = p.get('skills', [])
+              listed = set(raw) if (isinstance(raw, list) and all(isinstance(x, str) for x in raw)) else set()
+              tags = tokens(' '.join(p.get('tags', [])))
+              for s in skills:
+                  if s in listed or s in tags:
+                      discoverable.add(s)
+          missing = sorted(skills - discoverable)
           if missing:
-              print('ERROR: skills missing from marketplace:', missing, file=sys.stderr)
+              print('ERROR: skills not discoverable via marketplace:', missing, file=sys.stderr)
               sys.exit(1)
           EOF
 
@@ -56,7 +69,8 @@ jobs:
       - name: PowerShell installer is syntactically valid
         shell: pwsh
         run: |
+          $tokens = $null
           $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path install.ps1), [ref]$null, [ref]$errors)
+            (Resolve-Path install.ps1), [ref]$tokens, [ref]$errors)
           if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
