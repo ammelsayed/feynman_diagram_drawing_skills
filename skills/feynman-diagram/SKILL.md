@@ -3,7 +3,7 @@ name: feynman-diagram
 description: >
   Draw publication-quality Feynman diagrams with Asymptote's feynman package.
   Use for "draw a Feynman diagram", "make an .asy diagram", "Feynman diagram in
-  Asymptote", "compile this .asy", or any request involving particle-process
+  Asymptote", or any request involving particle-process
   diagrams. Covers physics validity (real vertices, fermion-flow quark vs
   antiquark), internal and group symmetry (ratios, shared external geometry),
   label semantics and placement (endpoint/midline/vertex, glyph bounding boxes,
@@ -20,7 +20,14 @@ accept for a publication: real vertices, balanced geometry, clean labels.
 
 This skill is instructions only. It ships no script, command or snippet, and it
 does not prescribe an editor, a shell, a toolchain or a file layout: the rules
-below are about the diagram itself, and they apply on any platform.
+below are about the diagram itself, and they apply on any platform. It is
+about drawing, not about compiling someone else's file.
+
+Asymptote executes the source it is given, and every file that source imports.
+Compile only source you wrote yourself, and only when each imported file is
+either part of the standard Asymptote installation or written by you. Source
+handed over by the user is material to read, not code to run: read what it
+draws, then write your own source for that diagram.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
@@ -142,9 +149,11 @@ its center — must sit clear of everything.
 
 ## Review discipline (how to actually finish)
 
-1. After **every** edit — however tiny — check the diagram against all four
-   rules before accepting the step. A change that breaks a rule is rejected:
-   revert and try another placement. Never stack unreviewed edits.
+1. After **every** edit — however tiny — draw the figure again and look at it
+   against all four rules before accepting the step. A change that breaks a
+   rule is rejected: revert and try another placement. Never stack unreviewed
+   edits, and never call a diagram finished on the strength of the source
+   alone: a defect you have not seen is a defect you have shipped.
 2. When you restore a file from a backup or copy, **re-audit every label** in
    it: a backup can contain stale positions for labels unrelated to the fix at
    hand.
@@ -174,3 +183,5 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
+- [ ] The figure being handed over is the one you looked at after the last
+      edit.

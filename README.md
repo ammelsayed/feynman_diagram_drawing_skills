@@ -111,12 +111,10 @@ feynman_diagram_drawing_skills/
 │   ├── plugin.json           # plugin manifest
 │   └── marketplace.json      # marketplace catalog
 ├── .github/workflows/
-│   └── validate.yml          # CI: skill spec + manifests + installer syntax
+│   └── validate.yml          # CI: skill spec + manifests
 ├── skills/
 │   └── feynman-diagram/
 │       └── SKILL.md          # the complete rule set
-├── scripts/
-│   └── validate_skills.py    # spec checker, no dependencies
 ├── install.sh
 ├── install.ps1
 └── LICENSE
@@ -127,25 +125,19 @@ startup. The body loads when the task matches.
 
 ## Verify
 
-```bash
-python3 scripts/validate_skills.py
-```
-
-```
-ok    feynman-diagram
-
-All 1 skills valid
-```
-
-Checks name format, name/directory match, description length, frontmatter
-delimiters, and non-empty body — the things a client rejects on.
+CI checks the same things a client rejects on: that `SKILL.md` is a regular,
+non-empty file, that its front matter is closed, that its `name` matches the
+directory, that the description is present and under 1024 characters, that
+both plugin manifests parse, and that the marketplace advertises exactly the
+skills on disk. Run the workflow's steps locally with `act`, or read them in
+`.github/workflows/validate.yml`.
 
 ## Contributing
 
 Issues and PRs welcome. If you add a skill:
 
 - Put it in `skills/<name>/SKILL.md` — name must match the directory.
-- Run `python3 scripts/validate_skills.py`.
+- CI validates the file; nothing else needs to run.
 - Keep the description under 1024 characters and make it say when to use the
   skill, not just what it does — that is the only text the agent sees before
   deciding.

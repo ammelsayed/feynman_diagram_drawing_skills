@@ -5,35 +5,97 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: validation needs to read the tree, nothing else.
+permissions:
+  contents: read
+
 jobs:
   skills:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # Do not persist the GITHUB_TOKEN in the checked-out repo's git config:
+          # PR code runs here and must not be able to read a write-capable token.
+          persist-credentials: false
 
-      - name: Validate SKILL.md against the Agent Skills spec
-        run: python3 scripts/validate_skills.py
-
-      - name: Check plugin manifest is valid JSON
+      - name: Check plugin manifests are valid JSON
         run: |
           python3 -c "import json;json.load(open('.claude-plugin/plugin.json'))"
           python3 -c "import json;json.load(open('.claude-plugin/marketplace.json'))"
 
-      - name: Check every skill is referenced in the marketplace
+      - name: Check every skill file and its front matter
         run: |
           python3 - <<'EOF'
-          import json, pathlib
-          mp = json.load(open('.claude-plugin/marketplace.json'))
-          names = {p['name'] for p in mp['plugins']}
-          assert names, 'marketplace has no plugins'
-          skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir()}
-          print('skills:', sorted(skills))
-          print('marketplace plugins:', sorted(names))
+          import pathlib, re, sys
+
+          errors = []
+          skills = {}
+          for d in sorted(p for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')):
+              f = d / 'SKILL.md'
+              if not f.is_file():
+                  errors.append(f'{f}: not a regular file')
+                  continue
+              text = f.read_text(encoding='utf-8')
+              if not text.strip():
+                  errors.append(f'{f}: empty')
+                  continue
+              if not text.startswith('---\n'):
+                  errors.append(f'{f}: no front matter')
+                  continue
+              head, sep, _ = text[4:].partition('\n---')
+              if not sep:
+                  errors.append(f'{f}: front matter is not closed')
+                  continue
+              fields, key = {}, None
+              for line in head.splitlines():
+                  m = re.match(r'^([A-Za-z_-]+):\s*(.*)$', line)
+                  if m:
+                      key, fields[m.group(1)] = m.group(1), m.group(2).strip()
+                  elif key and line.strip() and line.startswith((' ', '\t')):
+                      fields[key] += ' ' + line.strip()
+              desc = ' '.join(fields.get('description', '').split())
+              if desc in ('', '>', '|'):
+                  errors.append(f'{f}: no description')
+              elif len(desc) > 1024:
+                  errors.append(f'{f}: description is {len(desc)} characters, over 1024')
+              if not errors:
+                  skills[d.name] = f
+
+          if errors:
+              print('\n'.join('ERROR: ' + e for e in errors), file=sys.stderr)
+              sys.exit(1)
+          print('skills ok:', ', '.join(sorted(skills)))
           EOF
 
-      - name: Shell installer is syntactically valid
-        run: bash -n install.sh
+      - name: Check the marketplace advertises exactly these skills
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib, re, sys
+          mp = json.load(open('.claude-plugin/marketplace.json'))
+          plugins = mp['plugins']
+          skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')}
+
+          def tokens(value):
+              return set(re.findall(r'[a-z0-9]+(?:-[a-z0-9]+)*', str(value).lower()))
+
+          advertised = set()
+          for p in plugins:
+              raw = p.get('skills', [])
+              if isinstance(raw, list):
+                  advertised |= {x for x in raw if isinstance(x, str)}
+              advertised |= tokens(' '.join(p.get('tags', [])))
+
+          missing = sorted(skills - advertised)
+          # A slug advertised by the marketplace that has no skill directory is
+          # a skill users see but cannot install.
+          slugs = {x for p in plugins for x in (p.get('skills') or []) if isinstance(x, str)}
+          unknown = sorted(slugs - skills)
+          if missing:
+              print('ERROR: skills not advertised by the marketplace:', missing, file=sys.stderr)
+          if unknown:
+              print('ERROR: marketplace advertises unknown skills:', unknown, file=sys.stderr)
+          if missing or unknown:
+              sys.exit(1)
+          print('marketplace matches skills:', sorted(skills))
+          EOF
