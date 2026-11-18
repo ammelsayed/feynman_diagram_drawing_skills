@@ -14,174 +14,67 @@ description: >
 
 # Feynman diagrams in Asymptote
 
-Goal: a `.asy` script that renders to a PNG a physicist would accept for a
-publication — correct physics, balanced geometry, clean labels, verified by
-looking at the rendered image.
+Goal: a plain-text Asymptote source file, and a PNG rendered from it, that a
+physicist would accept for a publication — correct physics, balanced geometry,
+clean labels, verified by looking at the rendered image.
 
-## Environment and workflow
+## How to work
 
-Asymptote is available on **WSL, Linux, macOS and Windows**. Adapt the commands
-to the host; do not assume WSL.
+This skill is instructions only. No script, command line or runnable snippet
+ships with it: bring whatever editor, shell and toolchain the platform provides
+and follow the steps below on Linux, macOS, Windows or WSL alike.
 
-- Check first, with a command native to the host:
+1. **Have Asymptote ready.** Diagrams are written in Asymptote and drawn with
+   its `feynman` package, which ships with every standard Asymptote
+   installation. Confirm both are available before starting. If they are not,
+   install Asymptote for this platform or ask the user to; a web Asymptote
+   service is a last resort — it uploads the source, so use it only with the
+   user's consent and never for unpublished material. When no engine can be
+   obtained, say so in one line and still deliver the source file; never claim
+   it compiled.
 
-  ```bash
-  # Linux / macOS / WSL (bash)
-  command -v asy && asy --version
-  ```
+2. **Write the source as plain text in the diagram's own folder.** One text
+   file per diagram, in the folder the user asked for. Keep the source, its
+   PDF and its PNG together there: compiling in that folder is what makes
+   relative includes and sibling sources resolve, and it is where the user
+   expects the artifacts.
 
-  ```powershell
-  # Windows PowerShell (works in 5.1 and 7+)
-  Get-Command asy -ErrorAction SilentlyContinue
-  if ($?) { asy --version }
-  ```
+3. **Compile to PDF, then rasterize to PNG.** Compile the source to a PDF beside
+   it, then rasterize that PDF at 220 dpi or more. PDF-then-raster is preferred
+   over the compiler's own bitmap output because a high-resolution raster of a
+   vector page gives a clean image that matches what will be printed. Any
+   rasterizer the platform provides is acceptable — Poppler, ImageMagick,
+   Ghostscript or an operating-system preview tool. Write the PNG only once
+   rasterization has finished, replacing the previous PNG rather than leaving
+   two of them.
 
-  (In Windows Command Prompt use `where asy`. In WSL drive the native `wsl`
-  tool.) The `feynman` package ships with Asymptote (`feynman.asy` in the
-  installation's `base`/`prelude` directory, e.g. `/usr/share/asymptote/` on
-  Debian/Ubuntu). On Windows prefer a locally installed Asymptote (`asy.exe`).
-  A web compiler is a last resort at https://asymptote.ualberta.ca/ — HTTPS
-  only, and only with the user's consent: the `.asy` source is sent over the
-  network, so never upload unpublished or sensitive source without permission.
-  If no engine is available anywhere, say so in one line and deliver the
-  `.asy` anyway — never claim it compiled.
+4. **One render at a time per diagram.** Two renders of the same diagram write
+   the same PDF and PNG and would interleave; finish one before starting the
+   next, and render a multi-diagram job diagram by diagram.
 
-- **Path handling (security).** Never interpolate a user-controlled path or
-  filename directly into a shell command string. Shell metacharacters in such
-  input execute commands. Pass paths as separate, properly quoted arguments,
-  or set them as variables first. For example, in bash:
+5. **Check each step.** Compilation and rasterization each report a status; read
+   it before running the next step. A missing, empty, or older-than-the-source
+   PDF or PNG means the render did not happen — say so plainly, and never let
+   a later step turn a failure into a success report.
 
-  ```bash
-  out='name'                 # trusted or validated value
-  asy -f pdf -- "$out.asy"
-  pdftoppm -png -r 200 -singlefile -- "$out.pdf" "$out"
-  ```
+6. **Audit the image.** Open the PNG and zoom about three times into the
+   regions where labels and lines crowd, before claiming the diagram is done.
+   A diagram nobody looked at is not finished.
 
-  When crossing Windows/WSL, convert paths deliberately (`/mnt/c/...` inside
-  WSL) and quote them; do not paste a raw Windows path into `bash -lc`.
+House style, matching the user's own scripts and blog: begin the source by
+importing the `feynman` package, set the default pen to 0.75 line width, apply
+the package defaults, and define one scale length of 50 units that every
+coordinate is expressed against — helpers expand to that length along
+directions at chosen angles, so the whole figure scales uniformly. Draw
+fermions, gluons and vector bosons with the package's dedicated routines
+`drawFermion`, `drawGluon`, `drawPhoton`, and scalars with `drawScalar` (a
+Higgs line normally carries no arrow). Vertices are filled dots at heavy
+line width; text is placed with the package's label routine, with mathematics
+in dollar signs.
 
-- **Untrusted `.asy` files are executable code.** Asymptote runs the script
-  during compilation with the agent's file and network permissions. Source
-  inspection is not sufficient: effects can hide in imported/included files or
-  indirect constructs. Prefer local scripts you wrote yourself. If a user asks
-  you to compile a `.asy` from an untrusted source, do **not** compile it on the
-  host — either refuse, or compile only in a sandbox with no access to user
-  files and no network (e.g. a locked-down container/VM with the working
-  directory as the only writable mount). Always apply wall-clock and resource
-  limits to sandboxed compilation (`timeout`, memory/file-size caps) so a
-  hostile script cannot loop forever or exhaust the writable mount. Assume any
-  external `.asy` is hostile regardless of how clean it looks.
-
-- House style (matches the user's own scripts and blog):
-
-  ```asy
-  import feynman;
-  currentpen = linewidth(0.75);
-  fmdefaults();
-  real L = 50;
-  ```
-
-  Define points relative to each other with `L` and `dir(angle)` so the whole
-  diagram scales uniformly. Draw with `drawFermion`, `drawGluon`,
-  `drawPhoton` (vector bosons), `drawScalar` (Higgs — dashed), `dot(...,
-  linewidth(3))` for vertices, and `label(...)` for text. Higgs lines should
-  normally have no arrow: `drawScalar(a--b, None)`.
-
-- Compile in the diagram's own folder, then rasterize. Running `asy` from the
-  folder that holds the `.asy` is what makes relative `include`/`import` paths
-  and sibling `.asy` dependencies resolve; nothing is copied or staged.
-
-  Bash (Linux / macOS / WSL):
-
-  ```bash
-  set -euo pipefail
-  name='VBF_HH'                    # diagram basename: no slash, no "..", no leading -
-  case "$name" in
-    */*|*..*|-*) echo "name must be a plain basename without /, .. or a leading -" >&2; exit 2 ;;
-  esac
-  cd -- "$dir"                     # folder that holds the .asy
-  lock=".$name.render.lock"        # one render per folder and basename
-  mkdir -- "$lock" 2>/dev/null || {
-    echo "another render of $name is running (if none is, remove $lock)" >&2; exit 1; }
-  trap 'rmdir -- "$lock" 2>/dev/null' EXIT
-  rm -f -- "./$name.png"           # a failed raster must not leave an old PNG
-  asy -f pdf -- "$name.asy"        # writes "$name.pdf" beside the source
-  raster="$name.png.tmp.$$"        # rasterize under a temporary name
-  if command -v pdftoppm >/dev/null; then
-    pdftoppm -png -r 220 -singlefile -- "./$name.pdf" "$raster"
-  elif command -v magick >/dev/null; then
-    magick -density 220 -- "./$name.pdf" "./$raster.png"
-  elif command -v convert >/dev/null; then
-    convert -density 220 -- "./$name.pdf" "./$raster.png"
-  else
-    echo "no PDF rasterizer: install Poppler (pdftoppm) or ImageMagick (magick)" >&2
-    exit 1
-  fi
-  [ -s "./$name.pdf" ] && [ -s "./$raster.png" ] || { echo "render failed: $name" >&2; exit 1; }
-  mv -- "./$raster.png" "./$name.png"   # publish only once the PNG is complete
-  ```
-
-  PowerShell (Windows, 5.1 and 7+):
-
-  ```powershell
-  $ErrorActionPreference = 'Stop'
-  $name = 'VBF_HH'                 # diagram basename: no slash, no "..", no leading -
-  if ($name -match '[/\\]' -or $name -match '\.\.' -or $name.StartsWith('-')) {
-      throw 'name must be a plain basename without /, .. or a leading -'
-  }
-  Set-Location -LiteralPath $dir
-  $lock = ".$name.render.lock"     # one render per folder and basename
-  New-Item -ItemType Directory -Path $lock -ErrorAction Stop | Out-Null
-  try {
-      Remove-Item -LiteralPath "$name.png" -ErrorAction SilentlyContinue
-      asy -f pdf -- "$name.asy"
-      if ($LASTEXITCODE -ne 0) { throw "asy failed: $name" }
-      $raster = "$name.png.tmp"
-      if (Get-Command pdftoppm -ErrorAction SilentlyContinue) {
-          pdftoppm -png -r 220 -singlefile -- "./$name.pdf" "$raster"
-      }
-      elseif (Get-Command magick -ErrorAction SilentlyContinue) {
-          magick -density 220 -- "./$name.pdf" "./$raster.png"
-      }
-      else {
-          throw 'no PDF rasterizer: install Poppler (pdftoppm) or ImageMagick (magick)'
-      }
-      if ($LASTEXITCODE -ne 0) { throw "rasterization failed: $name" }
-      foreach ($f in "$name.pdf", "$raster.png") {
-          if (-not (Test-Path -LiteralPath $f) -or (Get-Item -LiteralPath $f).Length -eq 0) {
-              throw "missing or empty artifact: $f"
-          }
-      }
-      Move-Item -LiteralPath "$raster.png" -Destination "$name.png" -Force
-  }
-  finally {
-      Remove-Item -LiteralPath $lock -Recurse -Force -ErrorAction SilentlyContinue
-  }
-  ```
-
-  `pdftoppm` is one rasterizer among several: ImageMagick (`magick`/`convert`),
-  Ghostscript and an OS preview tool are equivalent. PDF then a 200+ dpi
-  rasterization gives a clean publication-quality PNG. On Windows only Poppler
-  or ImageMagick is assumed, and the recipe stops with a clear message when
-  neither is installed.
-
-  Render one diagram per folder and basename at a time, which the lock
-  directory enforces: a second run stops instead of rasterizing the first run's
-  PDF. A job with several diagrams renders them in sequence, and the rename
-  publishes each PNG only after the rasterizer has finished.
-
-- **Fail loudly.** Run each command on its own line and check it before the
-  next one, as the snippets above do (`set -euo pipefail` in bash; `throw` on a
-  non-zero `$LASTEXITCODE` or a missing artifact in PowerShell). A missing or
-  empty artifact means the render failed — say so. A later cleanup or move
-  command must never turn a failed render into a reported success.
-
-  Keep the `.asy`, the PDF and the PNG together in the folder the user asked
-  for: compile there rather than rendering elsewhere and moving files.
-
-- **Never claim done without looking at the rendered PNG.** Read the image,
-  zoom crops (`convert x.png -crop WxH+X+Y +repage -resize 300% z.png`) where
-  labels and lines are dense.
+One safety rule: Asymptote executes the source while compiling it, so a
+third-party source file is executable code, not data. Compile only source you
+or the user wrote; for anything else, decline and explain why in one line.
 
 ## The four rules
 
@@ -317,7 +210,6 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
-- [ ] Every changed PNG was re-rendered and visually inspected after the change.
-- [ ] Paths were quoted/safe; external `.asy` files were refused or compiled
-      only in a resource-limited, network-free sandbox; both the PDF and the
-      PNG exist and are non-empty before "done" is claimed.
+- [ ] The PNG was rendered from the current source and visually inspected after
+      the last edit; the PDF and PNG exist and are non-empty.
+- [ ] Only source written by the user or the agent was compiled.
