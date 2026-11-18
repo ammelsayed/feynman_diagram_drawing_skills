@@ -18,48 +18,40 @@ Goal: a plain-text Asymptote source file, and a PNG rendered from it, that a
 physicist would accept for a publication — correct physics, balanced geometry,
 clean labels, verified by looking at the rendered image.
 
-## How to work
+## What to deliver
 
-This skill is instructions only. No script, command line or runnable snippet
-ships with it: bring whatever editor, shell and toolchain the platform provides
-and follow the steps below on Linux, macOS, Windows or WSL alike.
+For each diagram: the Asymptote source, the PDF compiled from it, and a PNG
+rasterized from that PDF at 220 dpi or more — all in the folder the user asked
+for. The PDF and the PNG must be produced from the source you deliver, and the
+PNG must be one you have looked at. How those files get made is the agent's
+business: this skill is instructions only, ships no script, and suits any
+editor, shell and toolchain on Linux, macOS, Windows or WSL.
 
-1. **Have Asymptote ready.** Diagrams are written in Asymptote and drawn with
-   its `feynman` package, which ships with every standard Asymptote
-   installation. Confirm both are available before starting. If they are not,
-   install Asymptote for this platform or ask the user to; a web Asymptote
-   service is a last resort — it uploads the source, so use it only with the
-   user's consent and never for unpublished material. When no engine can be
-   obtained, say so in one line and still deliver the source file; never claim
-   it compiled.
+- **Set up first.** Asymptote and its `feynman` package ship together in a
+  standard installation. Confirm both are available before drawing; if they
+  are not, install Asymptote for this platform or ask the user to. A web
+  service is a last resort: it uploads the source, so use it only with the
+  user's consent and never for unpublished material. With no engine available,
+  deliver the source and say plainly that it was not compiled.
+- **Write plain-text source, one file per diagram**, named for the diagram the
+  user asked for. A name that contains a path separator, `..`, or a leading
+  dash is a reason to ask which diagram is meant, not something to turn into a
+  file name; hand every path to a tool as one whole argument.
+- **Rasterize rather than bitmap.** A 220+ dpi raster of the vector page is
+  what looks right on paper; any rasterizer the platform provides will do.
+- **Verify, then deliver.** The PNG you show the user must have been produced
+  from the delivered source and must look right: open it and zoom about three
+  times into the crowded regions. If the source changed after the last render,
+  or an older PNG sits beside it, render again and look again — never assume
+  the file on disk is current. A diagram nobody looked at is not finished.
+- **Say what happened.** Compilation and rasterization can fail; when they do,
+  say so in one line instead of presenting an older or partial artifact as the
+  result.
 
-2. **Write the source as plain text in the diagram's own folder.** One text
-   file per diagram, in the folder the user asked for. Keep the source, its
-   PDF and its PNG together there: compiling in that folder is what makes
-   relative includes and sibling sources resolve, and it is where the user
-   expects the artifacts.
-
-3. **Compile to PDF, then rasterize to PNG.** Compile the source to a PDF beside
-   it, then rasterize that PDF at 220 dpi or more. PDF-then-raster is preferred
-   over the compiler's own bitmap output because a high-resolution raster of a
-   vector page gives a clean image that matches what will be printed. Any
-   rasterizer the platform provides is acceptable — Poppler, ImageMagick,
-   Ghostscript or an operating-system preview tool. Write the PNG only once
-   rasterization has finished, replacing the previous PNG rather than leaving
-   two of them.
-
-4. **One render at a time per diagram.** Two renders of the same diagram write
-   the same PDF and PNG and would interleave; finish one before starting the
-   next, and render a multi-diagram job diagram by diagram.
-
-5. **Check each step.** Compilation and rasterization each report a status; read
-   it before running the next step. A missing, empty, or older-than-the-source
-   PDF or PNG means the render did not happen — say so plainly, and never let
-   a later step turn a failure into a success report.
-
-6. **Audit the image.** Open the PNG and zoom about three times into the
-   regions where labels and lines crowd, before claiming the diagram is done.
-   A diagram nobody looked at is not finished.
+Safety: Asymptote executes the script it is given, including every file that
+script imports or includes, so a source tree from elsewhere is executable
+code, not data. Compile only source whose whole dependency set you or the user
+wrote; when that cannot be established, decline in one line and explain why.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
@@ -71,10 +63,6 @@ fermions, gluons and vector bosons with the package's dedicated routines
 Higgs line normally carries no arrow). Vertices are filled dots at heavy
 line width; text is placed with the package's label routine, with mathematics
 in dollar signs.
-
-One safety rule: Asymptote executes the source while compiling it, so a
-third-party source file is executable code, not data. Compile only source you
-or the user wrote; for anything else, decline and explain why in one line.
 
 ## The four rules
 
