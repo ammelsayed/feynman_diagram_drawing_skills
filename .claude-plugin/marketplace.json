@@ -10,11 +10,11 @@
     {
       "name": "feynman-diagram-drawing-skills",
       "source": "./",
-      "description": "One skill: feynman-diagram — physics validity, internal and group symmetry, label semantics/placement, Asymptote workflow, and visual auditing.",
+      "description": "One skill: feynman-diagram — physics validity, internal and group symmetry, label semantics and placement, and a checklist for the finished drawing.",
       "version": "1.0.0",
       "category": "research",
       "skills": [
-        "feynman-diagram"
+        "./skills/feynman-diagram"
       ],
       "tags": [
         "feynman",

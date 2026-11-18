@@ -1,6 +1,6 @@
 {
   "name": "feynman-diagram-drawing-skills",
-  "description": "Draw publication-quality Feynman diagrams in Asymptote: physics-valid vertices and fermion flow, internal/group symmetry, precise label placement, and mandatory visual review.",
+  "description": "Draw publication-quality Feynman diagrams in Asymptote: physics-valid vertices and fermion flow, internal/group symmetry, precise label placement, and a checklist for the finished drawing.",
   "version": "1.0.0",
   "author": {
     "name": "Ahmed M. M. Elsayed",

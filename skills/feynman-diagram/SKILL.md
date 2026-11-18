@@ -3,55 +3,50 @@ name: feynman-diagram
 description: >
   Draw publication-quality Feynman diagrams with Asymptote's feynman package.
   Use for "draw a Feynman diagram", "make an .asy diagram", "Feynman diagram in
-  Asymptote", "compile this .asy", or any request involving particle-process
-  diagrams. Covers physics validity (vertices, fermion-flow/t vs anti-t),
-  internal and group symmetry (ratios, shared external geometry across a family),
+  Asymptote", or any request to draw or revise a particle-process diagram. Covers physics validity (real vertices, fermion-flow quark vs
+  antiquark), internal and group symmetry (ratios, shared external geometry),
   label semantics and placement (endpoint/midline/vertex, glyph bounding boxes,
-  object density), the compile workflow in WSL, and mandatory visual auditing.
-  General rules for any process (ggF, VBF, Higgs self-coupling, QCD/EW), with
-  examples — not tied to one diagram.
+  object density), and checking the finished drawing against these rules.
+  General rules for any process (ggF, VBF, Higgs self-coupling,
+  QCD/EW), with examples — not tied to one diagram.
 ---
 
 # Feynman diagrams in Asymptote
 
-Goal: a `.asy` script that renders to a PNG a physicist would accept for a
-publication — correct physics, balanced geometry, clean labels, verified by
-looking at the rendered image.
+A Feynman diagram is drawn by writing an Asymptote source file that uses the
+`feynman` package, and correcting it until the figure is one a physicist would
+accept for a publication: real vertices, balanced geometry, clean labels.
 
-## Environment and workflow
+This skill is instructions only. It ships no script, command or snippet, and it
+does not prescribe an editor, a shell, a toolchain or a file layout: the rules
+below are about the diagram itself, and they apply on any platform. It is
+about drawing, not about compiling someone else's file.
 
-The toolchain lives in **WSL**, not Windows. Use the native `wsl` tool
-(`wsl -e bash -lc '...'` under the hood) with `/mnt/c/...` paths.
+Asymptote executes the source it is given: an `import` or `include` of a
+user-supplied file runs that file's code. Compile only source you wrote
+yourself, and only when every imported or included file is either part of the
+standard Asymptote installation or written by you. Never import or include a
+file the user handed over, and never compile one: read what it draws, then
+write your own source for that diagram.
 
-- Check first: `which asy && asy --version` (Asymptote 2.87, `feynman.asy` in
-  `/usr/share/asymptote/`).
-- House style (matches the user's own scripts and blog):
+House style, matching the user's own scripts and blog: begin the source by
+importing the `feynman` package, set the default pen to 0.75 line width, apply
+the package defaults, and define one scale length of 50 units that every
+coordinate is expressed against — helpers expand to that length along
+directions at chosen angles, so the whole figure scales uniformly. Draw
+fermions, gluons and vector bosons with the package's dedicated routines
+`drawFermion`, `drawGluon`, `drawPhoton`, and scalars with `drawScalar` (a
+Higgs line normally carries no arrow). Vertices are filled dots at heavy
+line width; text is placed with the package's label routine, with mathematics
+in dollar signs.
 
-  ```asy
-  import feynman;
-  currentpen = linewidth(0.75);
-  fmdefaults();
-  real L = 50;
-  ```
-
-  Define points relative to each other with `L` and `dir(angle)` so the whole
-  diagram scales uniformly. Draw with `drawFermion`, `drawGluon`,
-  `drawPhoton` (vector bosons), `drawScalar` (Higgs — dashed), `dot(...,
-  linewidth(3))` for vertices, and `label(...)` for text. Higgs lines should
-  normally have no arrow: `drawScalar(a--b, None)`.
-
-- Compile to PDF then rasterize (PDF then `pdftoppm` gives clean high-res PNG):
-
-  ```bash
-  asy -f pdf name.asy
-  pdftoppm -png -r 200 -singlefile name.pdf name
-  ```
-
-  Keep the `.asy`, `.pdf`, and `.png` together in the requested folder.
-
-- **Never claim done without looking at the rendered PNG.** Read the image,
-  zoom crops (`convert x.png -crop WxH+X+Y +repage -resize 300% z.png`) where
-  labels and lines are dense.
+Arrows carry fermion-number flow. The process itself fixes that flow, so within
+a loop the segment whose arrow follows the flow the loop entered with is the
+quark and the segment whose arrow runs back against it is the antiquark. A loop
+with no external fermion attached has no such reference: its arrows are a
+convention, set once and kept consistent across the diagram, so the labels read
+the same way everywhere. Rule 1 reads the antiquark off the arrows; this
+convention is what those arrows mean.
 
 ## The four rules
 
@@ -59,28 +54,37 @@ Apply every rule to every diagram, every time.
 
 ### Rule 1 — Physics correctness (first, before drawing anything)
 
-Read the process and check that every vertex actually exists in the theory.
-Do not draw a vertex that is not in the Feynman rules.
+Read the process and the **specific theory the user asked for**, then check
+that every vertex exists in that theory. Do not draw a vertex that is not in
+its Feynman rules.
 
 - SM / κ-framework couplings: `ttg`, `ttH` (κ_t), `HHH` (κ_λ), `VVH` (κ_V),
   `VVHH` (κ_2V), `HHHH` (κ_4). Coupling labels belong to **their** vertex.
 - A quartic contact (e.g. VVHH, HHHH) is a genuine **4-point vertex**: all four
-  lines meet at one dot; there is **no** internal propagator inside it. A
-  3-point `V→HH` vertex does not exist in a gauge theory — drawing one is a
-  physics error even if the picture looks tidy.
+  lines meet at one dot; there is **no** internal propagator inside it.
+- Three-point vector–scalar couplings are theory-dependent. In the SM a
+  `V→HH` vertex with two identical neutral Higgses does not exist — reject it.
+  But in extended Higgs models (e.g. a charged Higgs pair coupling to Z or a
+  `H⁺H⁻γ/Z` vertex) a vector couples to two scalars at a genuine 3-point
+  vertex. Check the requested model before rejecting or drawing such a vertex;
+  preserve valid vector–scalar vertices.
 - A cascade (e.g. H\*→HH) is different: it has a real off-shell propagator from
   the production vertex to a separate decay vertex. Label the mediator on its
   line, and put each coupling at its own vertex (κ_V at production, κ_λ at the
   split).
 - **Fermion flow and anti-particles.** A closed quark loop carries one
-  continuous arrow flow. The loop segment whose arrow points *into* the
-  incoming bottom-left gluon vertex is an **anti-quark**: label it `$\bar{t}$`
-  (renders as `t~` in FeynArts style); every other segment of the same loop is
-  `$t$`. Concretely: bottom edge of a box/pentagon, or lower diagonal of a
-  triangle, is t̄. Get this right from the start — labelling a whole loop `t`
-  is wrong. Split a vertical edge at a Higgs attachment into two separate
-  fermion segments, each with its own arrow and label, not one line with one
-  arrow.
+  continuous arrow flow. Label each segment with the **requested quark flavor**,
+  not always top: if the loop is a bottom loop use `$b$` and `$\bar{b}$`, and so
+  on for any flavor. Determine which segment is the antiquark **from the actual
+  arrow direction**, not from a fixed vertex or edge position: following the
+  arrows around the loop, the segment whose arrow runs from the outgoing side
+  back into the incoming (e.g. gluon) vertex is the antiquark; the rest are
+  quarks. In the common orientation where arrows run clockwise, that is the
+  bottom edge of a box/pentagon or the lower diagonal of a triangle — but
+  re-derive it from the arrows whenever the geometry differs. In FeynArts style
+  an anti-top renders as `t~`. Split a fermion line at a Higgs attachment into
+  two separate segments, each with its own arrow and label, not one line with
+  one arrow.
 - Consistent notation: label every Higgs `$H$` (uppercase) across all diagrams
   in a set; never mix `h` and `H`. Keep verbatim coupling notation (κ_t, κ_λ,
   λ_3, λ_4, …) consistent across the family.
@@ -98,11 +102,11 @@ Beauty comes from balance. Design coordinates so equal things look equal.
 - Fan-outs are symmetric about the axis (upper and outgoing lower lines mirror
   each other in angle and length).
 - **Labels obey the same symmetry.** A pair of labels (two V's, two κ_t's,
-  top/bottom t̄) go on *matching* sides and at *equal distances* from their
-  objects. Never put one partner on the left and the other on the right; never
-  leave one tight to its vertex while the other is shoved far away. If one of a
-  pair must move to clear an obstacle, move its partner by the same magnitude
-  toward the equivalent clear side.
+  top/bottom antiquark labels) go on *matching* sides and at *equal distances*
+  from their objects. Never put one partner on the left and the other on the
+  right; never leave one tight to its vertex while the other is shoved far
+  away. If one of a pair must move to clear an obstacle, move its partner by
+  the same magnitude toward the equivalent clear side.
 
 ### Rule 3 — Group symmetry (across a family of diagrams)
 
@@ -130,9 +134,9 @@ its center — must sit clear of everything.
   collide, farther only if the surrounding lines force it.
 - **Whole-glyph check.** Labels like κ_λ have descenders/tails (the λ tail) that
   can cross a nearby line even when the letter's center looks clear. Zoom in
-  (~3x) and check the entire bounding box — including subscripts and the t-bar
-  — against every nearby line, dot, and other label. Move the whole label into
-  the empty wedge until the entire glyph clears.
+  (~3x) and check the entire bounding box — including subscripts and the
+  antiquark bar — against every nearby line, dot, and other label. Move the
+  whole label into the empty wedge until the entire glyph clears.
 - **Object-density check.** Look at a ~1–2 cm circle around each candidate
   position and count what is nearby (lines, vertices, other labels). When a
   label has several valid placements that obey rules 1–3, choose the one with
@@ -145,10 +149,11 @@ its center — must sit clear of everything.
 
 ## Review discipline (how to actually finish)
 
-1. After **every** edit — however tiny — recompile, re-render, and re-inspect
-   the PNG against all four rules before accepting the step. A change that
-   breaks a rule is rejected: revert and try another placement. Never stack
-   unreviewed edits.
+1. After **every** edit — however tiny — draw the figure again and look at it
+   against all four rules before accepting the step. A change that breaks a
+   rule is rejected: revert and try another placement. Never stack unreviewed
+   edits, and never call a diagram finished on the strength of the source
+   alone: a defect you have not seen is a defect you have shipped.
 2. When you restore a file from a backup or copy, **re-audit every label** in
    it: a backup can contain stale positions for labels unrelated to the fix at
    hand.
@@ -168,8 +173,9 @@ its center — must sit clear of everything.
 
 ## Pre-finish checklist
 
-- [ ] Every vertex exists in the theory; couplings match their vertices.
-- [ ] Fermion loop has t on forward segments, t̄ on the return segment.
+- [ ] Every vertex exists in the requested theory; couplings match vertices.
+- [ ] Fermion loops use the correct flavor and label the antiquark from the
+      actual arrow flow (not from a fixed example geometry).
 - [ ] Loops are square/regular; same-role lines have equal length and are
       parallel where appropriate.
 - [ ] Paired labels are mirror-symmetric with equal gaps.
@@ -177,4 +183,5 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
-- [ ] Every changed PNG was re-rendered and visually inspected after the change.
+- [ ] The figure being handed over is the one you looked at after the last
+      edit.
