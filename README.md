@@ -6,15 +6,15 @@ balanced geometry and clean labels, and the figure looked at before the agent
 says "done".
 
 Works with Claude Code, Codex, OpenCode, Cursor, DSH, WorkBuddy, and any client
-that implements the Agent Skills open standard. Install with one command, or
-use it as a Claude Code plugin marketplace.
+that implements the Agent Skills open standard. It is a set of instructions to
+copy into the folder your agent reads skills from.
 
 ```bash
 npx skills add ammelsayed/feynman_diagram_drawing_skills
 ```
 
-Requires Node 22.20+. Detects your installed agents and lets you pick where to
-install.
+`npx skills add` and the plugin marketplace are third-party clients; they copy
+the same directory into the folders those clients read.
 
 ## The problem this fixes
 
@@ -68,29 +68,26 @@ Claude Code, as a plugin marketplace:
 
 Then `/feynman-diagram-drawing-skills:feynman-diagram`.
 
-Shell installer, every agent at once:
-
-macOS / Linux / WSL:
+By hand, from the checkout root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ammelsayed/feynman_diagram_drawing_skills/main/install.sh | bash
+mkdir -p ~/.claude/skills
+dest=~/.claude/skills/feynman-diagram
+if [ -d "$dest" ]; then
+  echo "a copy is already there; move it aside and run this again"
+else
+  stage=$(mktemp -d ~/.claude/skills/.staging.XXXXXX)
+  cp -R skills/feynman-diagram/. "$stage"/
+  mv -T "$stage" "$dest" || echo "could not move $stage into place"
+fi
 ```
 
-Windows:
-
-```powershell
-irm https://raw.githubusercontent.com/ammelsayed/feynman_diagram_drawing_skills/main/install.ps1 | iex
-```
-
-The installer writes only into agents that exist on your machine, and supports
-`--dry-run` / `-DryRun` and `--uninstall` / `-Uninstall`.
-
-Manual:
-
-```bash
-git clone https://github.com/ammelsayed/feynman_diagram_drawing_skills
-cp -R feynman_diagram_drawing_skills/skills/* ~/.claude/skills/
-```
+The copy is assembled in a staging directory and moved into place in one
+step, so an interrupted copy leaves nothing at the destination. It refuses to
+touch an existing `feynman-diagram` directory, so an edited skill is never
+overwritten, and it never ends the shell it is pasted into. `git clone`
+itself makes a checkout wherever you run it; nothing else outside
+`~/.claude/skills/` is written.
 
 | Agent | Directory |
 |---|---|
@@ -115,8 +112,6 @@ feynman_diagram_drawing_skills/
 ├── skills/
 │   └── feynman-diagram/
 │       └── SKILL.md          # the complete rule set
-├── install.sh
-├── install.ps1
 └── LICENSE
 ```
 
