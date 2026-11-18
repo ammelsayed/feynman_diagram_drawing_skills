@@ -20,12 +20,12 @@ clean labels, verified by looking at the rendered image.
 
 ## What to deliver
 
-For each diagram: the Asymptote source, the PDF compiled from it, and a PNG
-rasterized from that PDF at 220 dpi or more — all in the folder the user asked
-for. The PDF and the PNG must be produced from the source you deliver, and the
-PNG must be one you have looked at. How those files get made is the agent's
-business: this skill is instructions only, ships no script, and suits any
-editor, shell and toolchain on Linux, macOS, Windows or WSL.
+A diagram is delivered as an Asymptote source file and a PNG of at least 220
+dpi rendered from it, in the folder the user asked for, with the PDF the PNG
+came from kept beside them when the user wants the vector file. How the files
+are made, named and written is the agent's business: this skill is instructions
+only, ships no script, and suits any editor, shell and toolchain on Linux,
+macOS, Windows or WSL.
 
 - **Set up first.** Asymptote and its `feynman` package ship together in a
   standard installation. Confirm both are available before drawing; if they
@@ -33,25 +33,20 @@ editor, shell and toolchain on Linux, macOS, Windows or WSL.
   service is a last resort: it uploads the source, so use it only with the
   user's consent and never for unpublished material. With no engine available,
   deliver the source and say plainly that it was not compiled.
-- **Write plain-text source, one file per diagram**, named for the diagram the
-  user asked for. A name that contains a path separator, `..`, or a leading
-  dash is a reason to ask which diagram is meant, not something to turn into a
-  file name; hand every path to a tool as one whole argument.
 - **Rasterize rather than bitmap.** A 220+ dpi raster of the vector page is
   what looks right on paper; any rasterizer the platform provides will do.
-- **Verify, then deliver.** The PNG you show the user must have been produced
-  from the delivered source and must look right: open it and zoom about three
-  times into the crowded regions. If the source changed after the last render,
-  or an older PNG sits beside it, render again and look again — never assume
-  the file on disk is current. A diagram nobody looked at is not finished.
+- **Look at what you deliver.** Open the PNG and zoom about three times into
+  the regions where labels and lines crowd, and look again after any change to
+  the source. A PNG nobody looked at is not evidence that the diagram is right.
 - **Say what happened.** Compilation and rasterization can fail; when they do,
   say so in one line instead of presenting an older or partial artifact as the
   result.
 
 Safety: Asymptote executes the script it is given, including every file that
-script imports or includes, so a source tree from elsewhere is executable
-code, not data. Compile only source whose whole dependency set you or the user
-wrote; when that cannot be established, decline in one line and explain why.
+script imports or includes. The standard Asymptote installation and its own
+packages are part of your toolchain and are always allowed; every other source
+file the script reaches must come from you or the user. When that cannot be
+established, decline in one line and explain which file is the problem.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
