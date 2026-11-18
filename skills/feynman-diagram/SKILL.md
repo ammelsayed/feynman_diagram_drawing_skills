@@ -7,42 +7,20 @@ description: >
   diagrams. Covers physics validity (real vertices, fermion-flow quark vs
   antiquark), internal and group symmetry (ratios, shared external geometry),
   label semantics and placement (endpoint/midline/vertex, glyph bounding boxes,
-  object density), a platform-neutral rendering requirement, and mandatory visual
-  auditing. General rules for any process (ggF, VBF, Higgs self-coupling,
+  object density), and checking the finished drawing against these rules.
+  General rules for any process (ggF, VBF, Higgs self-coupling,
   QCD/EW), with examples — not tied to one diagram.
 ---
 
 # Feynman diagrams in Asymptote
 
-Goal: a plain-text Asymptote source file that draws the process correctly, and
-— when a renderer is available — a picture of it a physicist would accept for a
-publication: correct physics, balanced geometry, clean labels.
+A Feynman diagram is drawn by writing an Asymptote source file that uses the
+`feynman` package, and correcting it until the figure is one a physicist would
+accept for a publication: real vertices, balanced geometry, clean labels.
 
-## What to deliver
-
-For each diagram the user gets a plain-text Asymptote source file, written where
-the user asked. When a renderer is available, hand over with it a PNG picture of
-the diagram at 220 dpi or more that you have looked at. This skill is
-instructions only: no script, command or snippet ships with it.
-
-- **An engine is needed to render.** Asymptote and its `feynman` package ship
-  together in a standard installation; confirm both are present before drawing
-  and, if they are not, install Asymptote for this platform or ask the user to.
-  A web Asymptote service is a last resort — it uploads the source — so use it
-  only with the user's consent and never for unpublished material.
-- **Say what happened.** When a step fails, say so in one line rather than
-  offering an older or partial file as the result.
-
-With no renderer available, the rendering, PNG and image-inspection requirements
-below do not apply: hand over the source and say in one line that nothing was
-rendered.
-
-Source files are executable: Asymptote runs the script it is given, including
-whatever that script imports. The standard installation and its own packages
-are part of your toolchain. Compile only source you wrote yourself, and only
-when every file that source imports is either part of that installation or
-written by you; a source file handed over by the user is material to read, not
-code to run.
+This skill is instructions only. It ships no script, command or snippet, and it
+does not prescribe an editor, a shell, a toolchain or a file layout: the rules
+below are about the diagram itself, and they apply on any platform.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
@@ -164,10 +142,9 @@ its center — must sit clear of everything.
 
 ## Review discipline (how to actually finish)
 
-1. With a renderer available, after **every** edit — however tiny — render
-   again and look at the new picture against all four rules before accepting
-   the step. A change that breaks a rule is rejected: revert and try another
-   placement. Never stack unreviewed edits.
+1. After **every** edit — however tiny — check the diagram against all four
+   rules before accepting the step. A change that breaks a rule is rejected:
+   revert and try another placement. Never stack unreviewed edits.
 2. When you restore a file from a backup or copy, **re-audit every label** in
    it: a backup can contain stale positions for labels unrelated to the fix at
    hand.
@@ -197,8 +174,3 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
-- [ ] The PNG you hand over is the one you looked at after the last edit —
-      or, with no renderer available, the hand-over says that nothing was
-      rendered.
-- [ ] The source compiled was your own and imported only the standard
-      installation's files.
