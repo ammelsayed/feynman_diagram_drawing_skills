@@ -14,7 +14,7 @@
       "version": "1.0.0",
       "category": "research",
       "skills": [
-        "feynman-diagram"
+        "./skills/feynman-diagram"
       ],
       "tags": [
         "feynman",
@@ -22,10 +22,7 @@
         "particle-physics",
         "diagram-drawing"
       ],
-      "strict": false,
-      "skills": [
-        "./skills/feynman-diagram"
-      ]
+      "strict": false
     }
   ]
 }
