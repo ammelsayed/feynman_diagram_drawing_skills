@@ -14,37 +14,35 @@ description: >
 
 # Feynman diagrams in Asymptote
 
-Goal: a plain-text Asymptote source file, and a PNG rendered from it, that a
-physicist would accept for a publication — correct physics, balanced geometry,
-clean labels, verified by looking at the rendered image.
+Goal: a plain-text Asymptote source file that draws the process correctly, and
+— when a renderer is available — a picture of it a physicist would accept for a
+publication: correct physics, balanced geometry, clean labels.
 
 ## What to deliver
 
-For each diagram the user gets a plain-text Asymptote source file, and — when a
-renderer is available — a PNG picture of that diagram at 220 dpi or more, in
-the folder the user asked for, with the PDF behind the PNG when the user wants
-the vector page. This skill is instructions only: no script, command or snippet
-ships with it.
+For each diagram the user gets a plain-text Asymptote source file, written where
+the user asked. When a renderer is available, hand over with it a PNG picture of
+the diagram at 220 dpi or more that you have looked at. This skill is
+instructions only: no script, command or snippet ships with it.
 
 - **An engine is needed to render.** Asymptote and its `feynman` package ship
   together in a standard installation; confirm both are present before drawing
   and, if they are not, install Asymptote for this platform or ask the user to.
   A web Asymptote service is a last resort — it uploads the source — so use it
-  only with the user's consent and never for unpublished material. With no
-  engine at all, hand over the source and say in one line that nothing was
-  rendered.
-- **A 220+ dpi raster of the vector page** is what looks right on paper.
-- **Look at the PNG you hand over**, zooming about three times into the regions
-  where labels and lines crowd. Nothing else establishes that the diagram is
-  right.
+  only with the user's consent and never for unpublished material.
 - **Say what happened.** When a step fails, say so in one line rather than
   offering an older or partial file as the result.
 
+With no renderer available, the rendering, PNG and image-inspection requirements
+below do not apply: hand over the source and say in one line that nothing was
+rendered.
+
 Source files are executable: Asymptote runs the script it is given, including
 whatever that script imports. The standard installation and its own packages
-are part of your toolchain; compile only source you wrote yourself. A source
-file handed over by the user is material to read, not code to run — read what
-it draws, then write your own source for that diagram.
+are part of your toolchain. Compile only source you wrote yourself, and only
+when every file that source imports is either part of that installation or
+written by you; a source file handed over by the user is material to read, not
+code to run.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
@@ -59,8 +57,11 @@ in dollar signs.
 
 Arrows carry fermion-number flow. The process itself fixes that flow, so within
 a loop the segment whose arrow follows the flow the loop entered with is the
-quark and the segment whose arrow runs back against it is the antiquark. Rule 1
-reads the antiquark off the arrows; this convention is what those arrows mean.
+quark and the segment whose arrow runs back against it is the antiquark. A loop
+with no external fermion attached has no such reference: its arrows are a
+convention, set once and kept consistent across the diagram, so the labels read
+the same way everywhere. Rule 1 reads the antiquark off the arrows; this
+convention is what those arrows mean.
 
 ## The four rules
 
@@ -163,10 +164,10 @@ its center — must sit clear of everything.
 
 ## Review discipline (how to actually finish)
 
-1. After **every** edit — however tiny — recompile, re-render, and re-inspect
-   the PNG against all four rules before accepting the step. A change that
-   breaks a rule is rejected: revert and try another placement. Never stack
-   unreviewed edits.
+1. With a renderer available, after **every** edit — however tiny — render
+   again and look at the new picture against all four rules before accepting
+   the step. A change that breaks a rule is rejected: revert and try another
+   placement. Never stack unreviewed edits.
 2. When you restore a file from a backup or copy, **re-audit every label** in
    it: a backup can contain stale positions for labels unrelated to the fix at
    hand.
@@ -196,8 +197,8 @@ its center — must sit clear of everything.
 - [ ] External labels at endpoints, mediators mid-line, couplings at vertices.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
-- [ ] The PNG you hand over shows the diagram as the source draws it and was
-      inspected after the last edit — or, with no engine available, the
-      hand-over says that nothing was rendered.
-- [ ] The source compiled was your own, together with the standard installation
-      and its packages.
+- [ ] The PNG you hand over is the one you looked at after the last edit —
+      or, with no renderer available, the hand-over says that nothing was
+      rendered.
+- [ ] The source compiled was your own and imported only the standard
+      installation's files.
