@@ -68,26 +68,12 @@ Claude Code, as a plugin marketplace:
 
 Then `/feynman-diagram-drawing-skills:feynman-diagram`.
 
-By hand, from the checkout root:
-
-```bash
-mkdir -p ~/.claude/skills
-dest=~/.claude/skills/feynman-diagram
-if [ -d "$dest" ]; then
-  echo "a copy is already there; move it aside and run this again"
-else
-  stage=$(mktemp -d ~/.claude/skills/.staging.XXXXXX)
-  cp -R skills/feynman-diagram/. "$stage"/
-  mv -T "$stage" "$dest" || echo "could not move $stage into place"
-fi
-```
-
-The copy is assembled in a staging directory and moved into place in one
-step, so an interrupted copy leaves nothing at the destination. It refuses to
-touch an existing `feynman-diagram` directory, so an edited skill is never
-overwritten, and it never ends the shell it is pasted into. `git clone`
-itself makes a checkout wherever you run it; nothing else outside
-`~/.claude/skills/` is written.
+To place it by hand: create the skills folder your agent reads (the row for
+your agent below), then put the `skills/feynman-diagram` directory from this
+repository inside it, so that `~/.claude/skills/feynman-diagram/SKILL.md` exists.
+If a `feynman-diagram` directory is already there, move it aside first: the
+skill is a directory you own from then on, and nothing in this repository
+overwrites edits you have made to it.
 
 | Agent | Directory |
 |---|---|
