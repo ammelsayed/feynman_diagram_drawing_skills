@@ -32,10 +32,12 @@ checkable rules.
 
 ### The four rules (summary)
 
-1. **Physics correctness** — only real vertices (a VVHH contact is 4-point with
-   no internal line; a `V→HH` 3-point vertex does not exist). Closed fermion
-   loops: the segment flowing into the bottom-left gluon vertex is an anti-top
-   `$\bar{t}$`, all others are `$t$`. Consistent notation (`H` everywhere).
+1. **Physics correctness** — only vertices valid in the requested theory (a
+   VVHH contact is 4-point with no internal line; `V→HH` is rejected in the SM
+   but may be valid in extended models, e.g. charged-Higgs pairs). Closed
+   fermion loops use the requested quark flavor, and the antiquark label is
+   derived from the actual arrow flow, not a fixed example geometry. Consistent
+   notation (`H` everywhere).
 2. **Internal symmetry** — square loops, equal-length parallel same-role lines,
    symmetric fan-outs, and *mirrored label pairs* with equal gaps.
 3. **Group symmetry** — diagrams of one family share the exact external
@@ -76,7 +78,8 @@ Windows:
 irm https://raw.githubusercontent.com/ammelsayed/feynman_diagram_drawing_skills/main/install.ps1 | iex
 ```
 
-The installer writes only into agents that exist on your machine, and supports
+The installer writes into agent directories that already exist on your machine,
+and always creates the universal `~/.agents/skills` target. It supports
 `--dry-run` / `-DryRun` and `--uninstall` / `-Uninstall`.
 
 Manual:

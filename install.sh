@@ -23,8 +23,6 @@ for arg in "$@"; do
   esac
 done
 
-# Agent skill directories, in the order we report them.
-# Each entry: "Label|path"
 TARGETS=(
   "Claude Code|$HOME/.claude/skills"
   "Codex|$HOME/.codex/skills"
@@ -35,26 +33,35 @@ TARGETS=(
   "WorkBuddy|$HOME/.workbuddy/skills"
   "Agent Skills (universal)|$HOME/.agents/skills"
 )
-
 SKILLS=(feynman-diagram)
+MARKER='.feynman-diagram-installer'
 
 say() { printf '%s\n' "$*"; }
 run() { if [ "$DRY" -eq 1 ]; then say "  [dry-run] $*"; else "$@"; fi; }
 
-# Uninstall never needs source files: handle it before any clone.
+# All temporary work (clone, staging, backups) is cleaned by ONE handler.
+TMPROOT="$(mktemp -d)"
+cleanup() { rm -rf "$TMPROOT"; }
+trap cleanup EXIT
+LOCK="$TMPROOT/install.lock"
+
+# Uninstall needs no source: handle it before any clone. Serialize per user.
 if [ "$UNINSTALL" -eq 1 ]; then
+  exec 9>"$HOME/.feynman_skills.lock"
+  flock 9
   say "Uninstalling Feynman diagram drawing skills"
   for entry in "${TARGETS[@]}"; do
     label="${entry%%|*}"; dir="${entry##*|}"
     for s in "${SKILLS[@]}"; do
       target="$dir/$s"
       if [ -e "$target" ]; then
-        # Only remove a directory we own: require our marker file.
-        if [ -f "$target/.feynman-diagram-installer" ]; then
+        # Remove our installs (marker present) AND legacy marker-less installs
+        # that look like ours (SKILL.md with our name in frontmatter).
+        if [ -f "$target/$MARKER" ] || grep -q 'name: feynman-diagram' "$target/SKILL.md" 2>/dev/null; then
           run rm -rf "$target"
           say "  removed  $label  $s"
         else
-          say "  kept     $label  $s (not installed by this installer)"
+          say "  kept     $label  $s (unmanaged content)"
         fi
       fi
     done
@@ -62,37 +69,37 @@ if [ "$UNINSTALL" -eq 1 ]; then
   exit 0
 fi
 
-# Resolve the source. A piped installer has no local checkout: $0 is often
-# "bash" or "/dev/stdin", so only trust a local source when the script is a
-# real file that sits next to skills/. Never trust the caller's CWD.
-SRC=""
-SELF="$(cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P)/$(basename -- "$0")" || SELF=""
-if [ -f "$SELF" ] && [ -f "$(dirname -- "$SELF")/skills/feynman-diagram/SKILL.md" ]; then
-  SRC="$(dirname -- "$SELF")/skills"
+# Source resolution: trust a local checkout ONLY when invoked as a real script
+# file next to skills/. `bash`/`/dev/stdin` from a piped install never qualify.
+SELF_PATH=""
+case "$0" in
+  /*|.?*) [ -f "$0" ] && SELF_PATH="$(cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P)/$(basename -- "$0")" ;;
+esac
+if [ -n "$SELF_PATH" ] && [ -f "$(dirname -- "$SELF_PATH")/skills/feynman-diagram/SKILL.md" ]; then
+  SRC="$(dirname -- "$SELF_PATH")/skills"
 else
-  TMP="$(mktemp -d)"
-  trap 'rm -rf "$TMP"' EXIT
   say "Fetching skills from $REPO ..."
-  git clone --depth 1 --quiet "$REPO" "$TMP/repo"
-  SRC="$TMP/repo/skills"
+  git clone --depth 1 --quiet "$REPO" "$TMPROOT/repo"
+  SRC="$TMPROOT/repo/skills"
 fi
 
-# Stage every destination first, then swap. This prevents a failed/interrupted
-# copy from leaving a missing or partial live skill, and avoids interleaved
-# concurrent installs landing in nested directories.
-STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
+# Stage the whole skill set once.
+STAGE="$TMPROOT/stage"
+mkdir -p "$STAGE"
 for s in "${SKILLS[@]}"; do
   cp -R "$SRC/$s" "$STAGE/$s"
-  printf '%s\n' 'Installed by feynman_diagram_drawing_skills/install.sh' > "$STAGE/$s/.feynman-diagram-installer"
+  printf '%s\n' 'Installed by feynman_diagram_drawing_skills/install.sh' > "$STAGE/$s/$MARKER"
 done
+
+# Serialize install operations too (same lock file as uninstall).
+exec 9>"$HOME/.feynman_skills.lock"
+flock 9
 
 installed=0
 for entry in "${TARGETS[@]}"; do
   label="${entry%%|*}"; dir="${entry##*|}"
   parent="$(dirname "$dir")"
-
-  # The universal target is valid even if ~/.agents does not exist yet.
+  # The universal target is created even if ~/.agents does not exist yet.
   if [ "$label" != "Agent Skills (universal)" ] && [ ! -d "$parent" ]; then
     continue
   fi
@@ -102,18 +109,27 @@ for entry in "${TARGETS[@]}"; do
     dest="$dir/$s"
     backup=""
     if [ -e "$dest" ]; then
-      if [ ! -f "$dest/.feynman-diagram-installer" ]; then
-        say "  skipped   $label  $s (existing data not managed by this installer)"
+      # Our installs (marker) and legacy marker-less copies of this skill are
+      # both managed and safe to replace; anything else is left alone.
+      if [ ! -f "$dest/$MARKER" ] && ! grep -q 'name: feynman-diagram' "$dest/SKILL.md" 2>/dev/null; then
+        say "  skipped   $label  $s (unmanaged content)"
         continue
       fi
-      backup="$(mktemp -d)/$(basename -- "$dest")"
-      mkdir -p "$(dirname -- "$backup")"
-      run mv "$dest" "$backup"     # preserve a restore point
+      if [ "$DRY" -eq 0 ]; then
+        backup="$TMPROOT/backup-$installed-$s"
+        mv "$dest" "$backup"      # atomic rename: no window without the skill
+      fi
     fi
-    if ! run cp -R "$STAGE/$s" "$dest"; then
+    if [ "$DRY" -eq 1 ]; then
+      say "  [dry-run] cp -R $STAGE/$s -> $dest"
+    elif ! cp -R "$STAGE/$s" "$dest"; then
+      # Failed copy: clear any partial destination, then restore the backup.
+      rm -rf "$dest"
       [ -n "$backup" ] && mv "$backup" "$dest"
-      say "  ERROR: failed to install $label/$s; previous version restored" >&2
+      say "  ERROR: failed to install $label/$s; previous state restored" >&2
       exit 1
+    else
+      [ -n "$backup" ] && rm -rf "$backup"   # success: drop the backup now
     fi
     say "  installed  $label  ->  $dest"
     installed=$((installed + 1))
