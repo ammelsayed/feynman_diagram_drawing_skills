@@ -5,15 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: validation needs to read the tree, nothing else.
+permissions:
+  contents: read
+
 jobs:
   skills:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Do not persist the GITHUB_TOKEN in the checked-out repo's git config:
+          # PR code runs here and must not be able to read a write-capable token.
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Install PyYAML for strict frontmatter parsing
+        run: python3 -m pip install --quiet pyyaml
 
       - name: Validate SKILL.md against the Agent Skills spec
         run: python3 scripts/validate_skills.py
@@ -23,17 +34,29 @@ jobs:
           python3 -c "import json;json.load(open('.claude-plugin/plugin.json'))"
           python3 -c "import json;json.load(open('.claude-plugin/marketplace.json'))"
 
-      - name: Check every skill is referenced in the marketplace
+      - name: Check every skill is discoverable through the marketplace
         run: |
           python3 - <<'EOF'
-          import json, pathlib
+          import json, pathlib, sys
           mp = json.load(open('.claude-plugin/marketplace.json'))
           names = {p['name'] for p in mp['plugins']}
           assert names, 'marketplace has no plugins'
-          skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir()}
+          skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')}
           print('skills:', sorted(skills))
           print('marketplace plugins:', sorted(names))
+          missing = sorted(skills - names)
+          if missing:
+              print('ERROR: skills missing from marketplace:', missing, file=sys.stderr)
+              sys.exit(1)
           EOF
 
       - name: Shell installer is syntactically valid
         run: bash -n install.sh
+
+      - name: PowerShell installer is syntactically valid
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path install.ps1), [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
