@@ -37,19 +37,27 @@ jobs:
       - name: Check every skill is discoverable through the marketplace
         run: |
           python3 - <<'EOF'
-          import json, pathlib, sys
+          import json, pathlib, re, sys
           mp = json.load(open('.claude-plugin/marketplace.json'))
           names = {p['name'] for p in mp['plugins']}
           assert names, 'marketplace has no plugins'
           skills = {p.name for p in pathlib.Path('skills').iterdir() if p.is_dir() and not p.name.startswith('.')}
           print('skills:', sorted(skills))
           print('marketplace plugins:', sorted(names))
-          # A plugin name may differ from the skill directory name. A skill is
-          # discoverable when a plugin advertises it in its description/tags.
+          # Match skill slugs as distinct advertised tokens, not arbitrary
+          # substrings of prose. Accept the slug as a word in a tag, or an
+          # explicit "skills:" list on the plugin.
+          def tokens(text):
+              return set(re.findall(r'[a-z0-9]+(?:-[a-z0-9]+)*', str(text).lower()))
           discoverable = set()
           for p in mp['plugins']:
-              text = (p.get('description', '') + ' ' + ' '.join(p.get('tags', []))).lower()
-              discoverable.update(s for s in skills if s.lower() in text)
+              listed = set()
+              if 'skills' in p:
+                  listed = set(map(str, p['skills']))
+              tags = tokens(' '.join(p.get('tags', [])))
+              for s in skills:
+                  if s in listed or s in tags:
+                      discoverable.add(s)
           missing = sorted(skills - discoverable)
           if missing:
               print('ERROR: skills not discoverable via marketplace:', missing, file=sys.stderr)
