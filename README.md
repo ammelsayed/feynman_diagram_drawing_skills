@@ -93,8 +93,6 @@ feynman_diagram_drawing_skills/
 ├── .claude-plugin/
 │   ├── plugin.json           # plugin manifest
 │   └── marketplace.json      # marketplace catalog
-├── .github/workflows/
-│   └── validate.yml          # CI: skill spec + manifests
 ├── skills/
 │   └── feynman-diagram/
 │       └── SKILL.md          # the complete rule set
@@ -106,19 +104,17 @@ startup. The body loads when the task matches.
 
 ## Verify
 
-CI checks the same things a client rejects on: that `SKILL.md` is a regular,
-non-empty file, that its front matter is closed, that its `name` matches the
-directory, that the description is present and under 1024 characters, that
-both plugin manifests parse, and that the marketplace advertises exactly the
-skills on disk. Run the workflow's steps locally with `act`, or read them in
-`.github/workflows/validate.yml`.
+There is no CI: this repository is one instruction file and two static
+manifests. Check a change by hand — `python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"`
+and the same for `marketplace.json` — and read the front matter of the skill
+you changed.
 
 ## Contributing
 
 Issues and PRs welcome. If you add a skill:
 
 - Put it in `skills/<name>/SKILL.md` — name must match the directory.
-- CI validates the file; nothing else needs to run.
+- Run the JSON check above if you touched a manifest.
 - Keep the description under 1024 characters and make it say when to use the
   skill, not just what it does — that is the only text the agent sees before
   deciding.

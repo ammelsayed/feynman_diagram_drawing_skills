@@ -3,8 +3,7 @@ name: feynman-diagram
 description: >
   Draw publication-quality Feynman diagrams with Asymptote's feynman package.
   Use for "draw a Feynman diagram", "make an .asy diagram", "Feynman diagram in
-  Asymptote", or any request involving particle-process
-  diagrams. Covers physics validity (real vertices, fermion-flow quark vs
+  Asymptote", or any request to draw or revise a particle-process diagram. Covers physics validity (real vertices, fermion-flow quark vs
   antiquark), internal and group symmetry (ratios, shared external geometry),
   label semantics and placement (endpoint/midline/vertex, glyph bounding boxes,
   object density), and checking the finished drawing against these rules.
