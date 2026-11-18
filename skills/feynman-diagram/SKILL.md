@@ -23,11 +23,12 @@ does not prescribe an editor, a shell, a toolchain or a file layout: the rules
 below are about the diagram itself, and they apply on any platform. It is
 about drawing, not about compiling someone else's file.
 
-Asymptote executes the source it is given, and every file that source imports.
-Compile only source you wrote yourself, and only when each imported file is
-either part of the standard Asymptote installation or written by you. Source
-handed over by the user is material to read, not code to run: read what it
-draws, then write your own source for that diagram.
+Asymptote executes the source it is given: an `import` or `include` of a
+user-supplied file runs that file's code. Compile only source you wrote
+yourself, and only when every imported or included file is either part of the
+standard Asymptote installation or written by you. Never import or include a
+file the user handed over, and never compile one: read what it draws, then
+write your own source for that diagram.
 
 House style, matching the user's own scripts and blog: begin the source by
 importing the `feynman` package, set the default pen to 0.75 line width, apply
