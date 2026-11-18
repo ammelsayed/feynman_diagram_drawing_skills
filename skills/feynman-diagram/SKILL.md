@@ -23,18 +23,28 @@ looking at the rendered image.
 Asymptote is available on **WSL, Linux, macOS and Windows**. Adapt the commands
 to the host; do not assume WSL.
 
-- Check first (native shell on the host; in WSL use the native `wsl` tool):
+- Check first, with a command native to the host:
 
   ```bash
-  which asy && asy --version
+  # Linux / macOS / WSL (bash)
+  command -v asy && asy --version
   ```
 
-  The `feynman` package ships with Asymptote (`feynman.asy` in the installation's
-  `base`/`prelude` directory, e.g. `/usr/share/asymptote/` on Debian/Ubuntu).
-  On Windows use an installed Asymptote (`asy.exe`) or the web compiler at
-  http://asymptote.ualberta.ca/ if no local engine exists. If no engine is
-  available anywhere, say so in one line and deliver the `.asy` anyway — never
-  claim it compiled.
+  ```powershell
+  # Windows PowerShell (works in 5.1 and 7+)
+  Get-Command asy -ErrorAction SilentlyContinue
+  if ($?) { asy --version }
+  ```
+
+  (In Windows Command Prompt use `where asy`. In WSL drive the native `wsl`
+  tool.) The `feynman` package ships with Asymptote (`feynman.asy` in the
+  installation's `base`/`prelude` directory, e.g. `/usr/share/asymptote/` on
+  Debian/Ubuntu). On Windows prefer a locally installed Asymptote (`asy.exe`).
+  A web compiler is a last resort at https://asymptote.ualberta.ca/ — HTTPS
+  only, and only with the user's consent: the `.asy` source is sent over the
+  network, so never upload unpublished or sensitive source without permission.
+  If no engine is available anywhere, say so in one line and deliver the
+  `.asy` anyway — never claim it compiled.
 
 - **Path handling (security).** Never interpolate a user-controlled path or
   filename directly into a shell command string. Shell metacharacters in such
@@ -51,10 +61,16 @@ to the host; do not assume WSL.
   WSL) and quote them; do not paste a raw Windows path into `bash -lc`.
 
 - **Untrusted `.asy` files are executable code.** Asymptote runs the script
-  during compilation, with the agent's file/network permissions. Only compile
-  files you wrote or inspected. If a user supplies a `.asy` from an untrusted
-  source, read it first for `system`, `execute`, file I/O or network calls, or
-  compile it in a sandbox without access to user files or the network.
+  during compilation with the agent's file and network permissions. Source
+  inspection is not sufficient: effects can hide in imported/included files or
+  indirect constructs. Prefer local scripts you wrote yourself. If a user asks
+  you to compile a `.asy` from an untrusted source, do **not** compile it on the
+  host — either refuse, or compile only in a sandbox with no access to user
+  files and no network (e.g. a locked-down container/VM with the working
+  directory as the only writable mount). Always apply wall-clock and resource
+  limits to sandboxed compilation (`timeout`, memory/file-size caps) so a
+  hostile script cannot loop forever or exhaust the writable mount. Assume any
+  external `.asy` is hostile regardless of how clean it looks.
 
 - House style (matches the user's own scripts and blog):
 
@@ -81,20 +97,30 @@ to the host; do not assume WSL.
   `pdftoppm` is one common choice; equivalent rasterizers (ImageMagick
   `convert`/`magick`, `gs`, Preview, etc.) are fine on other hosts.
 
-- **Render atomically.** Write PDF and PNG to a temporary directory first,
-  verify both were produced successfully, then move the complete set into the
-  destination folder. Never leave a new source/PDF beside a stale PNG. Serialize
-  concurrent workflows targeting the same folder and basename.
+- **Render atomically.** When publishing several artifacts for one diagram, the
+  `.asy`, PDF, and PNG must appear as a single coherent set — never a new source
+  beside stale outputs, and never a PDF without its PNG. To achieve this:
+  - Create and validate the destination folder before rendering.
+  - Stage all artifacts in a private temporary directory on the **same
+    filesystem** as the destination, so final publication is a rename rather
+    than a copy.
+  - Verify every artifact exists and is non-empty before publishing.
+  - Publish the set with one atomic directory rename, or an equivalent
+    all-or-nothing operation. If publication fails, leave the staged files in
+    place for recovery instead of deleting them.
+  - Serialize renders that target the same folder and basename with a lock kept
+    in a **private** directory (never a caller-controlled path). Check lock
+    acquisition; if it fails, stop rather than render unlocked. Nothing may
+    publish if a newer version of the same diagram was requested meanwhile.
+  - Check every command's status. Stop on any failure; a trailing cleanup
+    command must not turn a failed render into a reported success.
+  - Stage relative imports/includes alongside the source: reject symlinks and
+    non-regular files, bound their sizes, and verify each copy succeeds.
 
-  ```bash
-  tmp="$(mktemp -d)"
-  asy -f pdf -o "$tmp" -- name.asy          # or compile there
-  pdftoppm -png -r 200 -singlefile -- "$tmp/name.pdf" "$tmp/name"
-  mv "$tmp/name.pdf" "$tmp/name.png" .      # publish only on success
-  rm -rf "$tmp"
-  ```
-
-  Keep the `.asy`, `.pdf`, and `.png` together in the requested folder.
+  Prefer the maintained helper script `scripts/render_diagram.sh` in this repo
+  for this workflow; it implements the above. Adapt it per host rather than
+  pasting ad-hoc shell into a prompt. Keep the `.asy`, `.pdf`, and `.png`
+  together in the requested folder.
 
 - **Never claim done without looking at the rendered PNG.** Read the image,
   zoom crops (`convert x.png -crop WxH+X+Y +repage -resize 300% z.png`) where
@@ -235,5 +261,6 @@ its center — must sit clear of everything.
 - [ ] Every label's full glyph (tails/subscripts included) is clear; low-density
       placement chosen.
 - [ ] Every changed PNG was re-rendered and visually inspected after the change.
-- [ ] Paths were quoted/safe; only inspected `.asy` files were compiled;
-      artifacts were rendered atomically.
+- [ ] Paths were quoted/safe; external `.asy` files were refused or compiled
+      only in a resource-limited, network-free sandbox; artifacts were rendered
+      and published atomically under a lock.
