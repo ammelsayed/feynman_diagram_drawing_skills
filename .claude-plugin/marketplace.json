@@ -13,6 +13,9 @@
       "description": "One skill: feynman-diagram — physics validity, internal and group symmetry, label semantics/placement, Asymptote workflow, and visual auditing.",
       "version": "1.0.0",
       "category": "research",
+      "skills": [
+        "feynman-diagram"
+      ],
       "tags": [
         "feynman",
         "asymptote",
